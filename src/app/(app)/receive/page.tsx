@@ -16,10 +16,8 @@ import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
 
 // Thread D action
-import {
-  receiveFromLaundry,
-  ReceiveFromLaundrySchema,
-} from "@/actions/transactions";
+import { receiveFromLaundry } from "@/actions/transactions";
+import { ReceiveFromLaundrySchema } from "@/actions/transactions/schemas.client";
 
 const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:receive";

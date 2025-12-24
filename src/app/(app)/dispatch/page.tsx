@@ -13,10 +13,8 @@ import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 
 // Thread D action
-import {
-  dispatchToLaundry,
-  DispatchToLaundrySchema,
-} from "@/actions/transactions";
+import { dispatchToLaundry } from "@/actions/transactions";
+import { DispatchToLaundrySchema } from "@/actions/transactions/schemas.client";
 
 const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:dispatch";

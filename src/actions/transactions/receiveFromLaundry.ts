@@ -9,7 +9,7 @@ import {
 import { requireUser, requireRole, requirePropertyAccess } from "@/lib/auth";
 import { postTransaction } from "@/lib/ledger";
 import { getLocationByKind, getVendorLocation } from "@/lib/workflowLocations";
-import { ReceiveFromLaundrySchema } from "./index";
+import { ReceiveFromLaundrySchema } from "./schemas";
 
 type ActionResult =
   | { ok: true; transactionId: string }

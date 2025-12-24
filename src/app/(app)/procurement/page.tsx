@@ -14,10 +14,8 @@ import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 
 // Thread D action
-import {
-  createProcurement,
-  CreateProcurementSchema,
-} from "@/actions/transactions";
+import { createProcurement } from "@/actions/transactions";
+import { CreateProcurementSchema } from "@/actions/transactions/schemas.client";
 
 const LS_PROPERTY = "laundry:lastPropertyId";
 

@@ -14,7 +14,8 @@ import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 
 // Thread D action
-import { discardLost, DiscardLostSchema } from "@/actions/transactions";
+import { discardLost } from "@/actions/transactions";
+import { DiscardLostSchema } from "@/actions/transactions/schemas.client";
 
 const LS_PROPERTY = "laundry:lastPropertyId";
 
