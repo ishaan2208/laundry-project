@@ -1,0 +1,234 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  HOUSEKEEPING
+  ACCOUNTANT
+  STOREKEEPER
+}
+
+enum LinenCondition {
+  CLEAN
+  SOILED
+  REWASH
+  DAMAGED
+}
+
+enum LocationKind {
+  CLEAN_STORE
+  SOILED_STORE
+  REWASH_BIN
+  DAMAGED_BIN
+  DISCARDED_LOST
+  VENDOR // vendor “in laundry” location per property
+}
+
+enum TxnType {
+  PROCUREMENT
+  DISPATCH_TO_LAUNDRY
+  RECEIVE_FROM_LAUNDRY
+  RESEND_REWASH
+  DISCARD_LOST
+  ADJUSTMENT
+  VOID_REVERSAL
+}
+
+model User {
+  id    String   @id @default(cuid())
+  email String   @unique
+  name  String?
+  role  UserRole @default(HOUSEKEEPING)
+
+  // If using Clerk: store external auth id here
+  authId String? @unique
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties UserProperty[]
+
+  createdTransactions Transaction[] @relation("CreatedBy")
+  voidedTransactions  Transaction[] @relation("VoidedBy")
+}
+
+model Property {
+  id       String  @id @default(cuid())
+  name     String
+  code     String? @unique // short code like "H1", "LW", etc.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations    Location[]
+  transactions Transaction[]
+  userLinks    UserProperty[]
+
+  @@index([isActive])
+}
+
+model UserProperty {
+  id         String @id @default(cuid())
+  userId     String
+  propertyId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@index([propertyId])
+}
+
+model Vendor {
+  id       String  @id @default(cuid())
+  name     String
+  phone    String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations    Location[]
+  transactions Transaction[]
+
+  @@index([isActive])
+}
+
+model LinenItem {
+  id       String  @id @default(cuid())
+  name     String
+  sku      String? @unique
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries TransactionEntry[]
+
+  @@index([isActive])
+}
+
+model Location {
+  id         String  @id @default(cuid())
+  propertyId String
+  vendorId   String?
+
+  name String
+  kind LocationKind
+
+  // ✅ stable unique identity (system-managed)
+  // Defaults: "CLEAN_STORE", "SOILED_STORE", ...
+  // Vendor:   "VENDOR:<vendorId>"
+  kindKey  String
+  isSystem Boolean @default(true)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  entries TransactionEntry[]
+
+  @@unique([propertyId, name])
+  @@unique([propertyId, kindKey]) // ✅ the important one
+  @@index([propertyId, kind])
+  @@index([propertyId, kindKey])
+  @@index([propertyId, vendorId])
+  @@index([vendorId])
+}
+
+model Transaction {
+  id   String  @id @default(cuid())
+  type TxnType
+
+  // Keep property always present for filtering/reporting
+  propertyId String
+  vendorId   String?
+
+  reference String? // invoice no, DC no, challan no, internal ref
+  note      String?
+
+  idempotencyKey String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  createdById String
+  voidedAt    DateTime?
+  voidReason  String?
+  voidedById  String?
+
+  // reversal support (VOID creates a new txn that points back)
+  reversalOfId String?
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  createdBy User  @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy  User? @relation("VoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  reversalOf Transaction?  @relation("TxnReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals  Transaction[] @relation("TxnReversal")
+
+  entries TransactionEntry[]
+
+  @@unique([createdById, idempotencyKey])
+  @@unique([reversalOfId])
+  @@index([propertyId, occurredAt])
+  @@index([vendorId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([voidedAt])
+}
+
+model TransactionEntry {
+  id            String @id @default(cuid())
+  transactionId String
+
+  // denormalized for fast balance queries (source of truth still location.propertyId)
+  propertyId String
+
+  locationId  String
+  linenItemId String
+  condition   LinenCondition
+
+  // +/- ledger delta
+  qtyDelta Int
+
+  // optional procurement costing
+  unitCost Decimal? @db.Decimal(10, 2)
+
+  // room for small structured metadata (photo later, reason codes, etc.)
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  location    Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  linenItem   LinenItem   @relation(fields: [linenItemId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
+  @@index([propertyId, locationId])
+  @@index([propertyId, linenItemId, condition])
+  @@index([propertyId, locationId, linenItemId, condition])
+  @@index([locationId, linenItemId, condition])
+}
