@@ -1,3 +1,4 @@
+// src/components/reports/PropertyPicker.tsx
 "use client";
 
 import * as React from "react";
@@ -14,9 +15,15 @@ import {
 export default function PropertyPicker({
   properties,
   current,
+  required = false,
+  label = "Property",
+  placeholder = "Select",
 }: {
   properties: { id: string; name: string }[];
   current?: string | undefined;
+  required?: boolean;
+  label?: string;
+  placeholder?: string;
 }) {
   const sp = useSearchParams();
   const router = useRouter();
@@ -34,23 +41,26 @@ export default function PropertyPicker({
   function onChange(v: string) {
     setValue(v);
     const params = new URLSearchParams(sp.toString());
-    // Select requires non-empty values for items. We use a sentinel value
-    // (`__all`) to represent the empty selection and translate it here.
-    if (!v || v === "__all") params.delete("propertyId");
-    else params.set("propertyId", v);
+
+    if (!v) {
+      if (required) return; // ignore empty when required
+      params.delete("propertyId");
+    } else {
+      params.set("propertyId", v);
+    }
+
     params.delete("cursor");
     router.push(`${pathname}?${params.toString()}`);
   }
 
   return (
-    <div className="sm:hidden w-48">
-      <Label className="text-xs">Property</Label>
+    <div className="sm:hidden w-full">
+      <Label className="text-xs">{label}</Label>
       <Select value={value} onValueChange={(v) => onChange(v)}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select" />
+        <SelectTrigger className="mt-1">
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all">All</SelectItem>
           {properties.map((p) => (
             <SelectItem key={p.id} value={p.id}>
               {p.name}

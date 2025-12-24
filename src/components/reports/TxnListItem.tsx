@@ -9,7 +9,7 @@ function typeLabel(t: string) {
 
 export function TxnListItem({ row }: { row: TxnListRow }) {
   return (
-    <Link href={`/txns/${row.id}`} className="block">
+    <Link href={`/app/txns/${row.id}`} className="block">
       <Card className="p-3 max-w-[94vw] hover:bg-accent hover:underline">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

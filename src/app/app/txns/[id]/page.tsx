@@ -56,7 +56,7 @@ export default async function TxnDetailPage({
         </div>
 
         {user.role === UserRole.ADMIN ? (
-          <VoidTxnButton txnId={t.id} disabled={Boolean(t.voidedAt)} />
+          <VoidTxnButton txnId={t.id} disabled={true || Boolean(t.voidedAt)} />
         ) : null}
       </div>
 

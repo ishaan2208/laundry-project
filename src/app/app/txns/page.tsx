@@ -50,7 +50,7 @@ export default async function TxnsPage({
           .then((rows) => rows.map((r) => r.property));
 
   if (!propertyId && properties.length === 1) {
-    redirect(`/txns?propertyId=${properties[0].id}`);
+    redirect(`/app/txns?propertyId=${properties[0].id}`);
   }
 
   const vendors = propertyId
@@ -89,7 +89,7 @@ export default async function TxnsPage({
         if (to) params.set("to", to);
         if (includeVoided) params.set("includeVoided", "1");
         params.set("cursor", res.nextCursor);
-        return `/txns?${params.toString()}`;
+        return `/app/txns?${params.toString()}`;
       })()
     : null;
 

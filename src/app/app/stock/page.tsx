@@ -1,3 +1,4 @@
+// src/app/app/stock/page.tsx
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,12 +10,33 @@ import PropertyPicker from "@/components/reports/PropertyPicker";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Boxes,
+  SlidersHorizontal,
+  TriangleAlert,
+  Building2,
+  PackageSearch,
+} from "lucide-react";
+
+const BASE_PATH = "/app/stock";
+
+function parseEnum<T extends string>(
+  v: unknown,
+  values: readonly T[],
+  fallback?: T
+) {
+  if (typeof v !== "string") return fallback;
+  return (values as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
+function labelEnum(v: string) {
+  return v.replaceAll("_", " ");
+}
 
 export default async function StockPage({
   searchParams,
 }: {
-  // `searchParams` may be a Promise in newer Next.js versions so accept a
-  // Promise and await it before accessing properties.
   searchParams:
     | Promise<Record<string, string | string[] | undefined>>
     | Record<string, string | string[] | undefined>;
@@ -28,14 +50,21 @@ export default async function StockPage({
 
   const propertyId =
     typeof sp.propertyId === "string" ? sp.propertyId : undefined;
+
+  // Defaults: show vendor (in-laundry) balances by default
   const locationKind =
-    typeof sp.locationKind === "string"
-      ? (sp.locationKind as LocationKind)
-      : undefined;
-  const condition =
-    typeof sp.condition === "string"
-      ? (sp.condition as LinenCondition)
-      : undefined;
+    parseEnum<LocationKind>(
+      sp.locationKind,
+      Object.values(LocationKind),
+      LocationKind.VENDOR
+    ) ?? LocationKind.VENDOR;
+
+  const condition = parseEnum<LinenCondition>(
+    sp.condition,
+    Object.values(LinenCondition),
+    undefined
+  );
+
   const linenItemId =
     typeof sp.linenItemId === "string" ? sp.linenItemId : undefined;
 
@@ -54,12 +83,9 @@ export default async function StockPage({
           })
           .then((rows) => rows.map((r) => r.property));
 
-  if (!propertyId) {
-    if (properties.length === 1)
-      redirect(`/stock?propertyId=${properties[0].id}`);
-    // If multiple properties exist but none selected, allow the user to pick one
-    // via the ReportFiltersSheet or the inline picker below. Don't return early
-    // — just render the page without making data calls that require a property.
+  // If user has exactly one property, lock it in
+  if (!propertyId && properties.length === 1) {
+    redirect(`${BASE_PATH}?propertyId=${properties[0].id}`);
   }
 
   const linenItems = propertyId
@@ -76,82 +102,182 @@ export default async function StockPage({
 
   if (!res.ok) return <Card className="p-4 text-sm">Failed to load.</Card>;
 
+  const negativeCount = res.rows.filter((r) => r.isNegative).length;
+  const activeFiltersCount =
+    Number(Boolean(condition)) +
+    Number(Boolean(linenItemId)) +
+    Number(Boolean(locationKind));
+
+  const currentPropertyName = propertyId
+    ? properties.find((p) => p.id === propertyId)?.name
+    : undefined;
+
+  const hasAnyData = res.rows.length > 0;
+
   return (
     <div className="mx-auto w-full max-w-2xl p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-lg font-semibold">Stock Snapshot</div>
-          <div className="text-xs text-muted-foreground">
-            Balances (SUM of ledger entries)
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ReportFiltersSheet
-            title="Stock Filters"
-            fields={[
-              {
-                key: "propertyId",
-                label: "Property",
-                type: "select",
-                options: properties.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                })),
-              },
-              {
-                key: "locationKind",
-                label: "Location",
-                type: "select",
-                options: Object.values(LocationKind).map((k) => ({
-                  value: k,
-                  label: k.replaceAll("_", " "),
-                })),
-              },
-              {
-                key: "condition",
-                label: "Condition",
-                type: "select",
-                options: Object.values(LinenCondition).map((c) => ({
-                  value: c,
-                  label: c.replaceAll("_", " "),
-                })),
-              },
-              {
-                key: "linenItemId",
-                label: "Item",
-                type: "select",
-                options: linenItems.map((i) => ({
-                  value: i.id,
-                  label: i.name,
-                })),
-              },
-            ]}
-          />
-          {properties.length > 1 ? (
-            <>
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="text-xs text-muted-foreground">Property:</div>
-                {properties.map((p) => (
-                  <Button
-                    key={p.id}
-                    asChild
-                    variant={p.id === propertyId ? "default" : "outline"}
-                    size="sm"
-                  >
-                    <Link href={`/stock?propertyId=${p.id}`}>{p.name}</Link>
-                  </Button>
-                ))}
+      {/* Premium glass header */}
+      <Card className="border bg-background/40 backdrop-blur-md supports-[backdrop-filter]:bg-background/30">
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-background/50">
+                  <Boxes className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-semibold">
+                    Stock Snapshot
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Balances (SUM of ledger entries)
+                  </div>
+                </div>
               </div>
 
-              <PropertyPicker properties={properties} current={propertyId} />
-            </>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {currentPropertyName ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Building2 className="h-3.5 w-3.5" />
+                    {currentPropertyName}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1">
+                    <TriangleAlert className="h-3.5 w-3.5" />
+                    Select property to view stock
+                  </Badge>
+                )}
+
+                <Badge variant="outline">{labelEnum(locationKind)}</Badge>
+
+                {condition ? (
+                  <Badge variant="secondary">{labelEnum(condition)}</Badge>
+                ) : null}
+                {linenItemId ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <PackageSearch className="h-3.5 w-3.5" />
+                    {linenItems.find((i) => i.id === linenItemId)?.name ??
+                      "Item"}
+                  </Badge>
+                ) : null}
+
+                {negativeCount > 0 ? (
+                  <Badge variant="destructive" className="gap-1">
+                    <TriangleAlert className="h-3.5 w-3.5" />
+                    {negativeCount} negative
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <ReportFiltersSheet
+                title="Stock Filters"
+                buttonLabel="Filters"
+                fields={[
+                  {
+                    key: "propertyId",
+                    label: "Property",
+                    type: "select",
+                    options: properties.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                    })),
+                  },
+                  {
+                    key: "locationKind",
+                    label: "Location",
+                    type: "select",
+                    options: Object.values(LocationKind).map((k) => ({
+                      value: k,
+                      label: labelEnum(k),
+                    })),
+                  },
+                  {
+                    key: "condition",
+                    label: "Condition",
+                    type: "select",
+                    options: Object.values(LinenCondition).map((c) => ({
+                      value: c,
+                      label: labelEnum(c),
+                    })),
+                  },
+                  {
+                    key: "linenItemId",
+                    label: "Item",
+                    type: "select",
+                    options: linenItems.map((i) => ({
+                      value: i.id,
+                      label: i.name,
+                    })),
+                  },
+                ]}
+              />
+
+              {/* desktop quick property buttons */}
+              {properties.length > 1 ? (
+                <div className="hidden sm:flex items-center gap-2">
+                  <div className="text-xs text-muted-foreground">Property:</div>
+                  {properties.map((p) => (
+                    <Button
+                      key={p.id}
+                      asChild
+                      variant={p.id === propertyId ? "default" : "outline"}
+                      size="sm"
+                    >
+                      <Link href={`${BASE_PATH}?propertyId=${p.id}`}>
+                        {p.name}
+                      </Link>
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* mobile property picker */}
+          {properties.length > 1 ? (
+            <div className="mt-3">
+              <PropertyPicker
+                properties={properties}
+                current={propertyId}
+                required
+                label="Property"
+                placeholder="Select property"
+              />
+            </div>
+          ) : null}
+
+          {/* quick clear (only when property selected) */}
+          {propertyId && activeFiltersCount > 0 ? (
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Tip: Default view is “Vendor” (in laundry).
+              </div>
+              <Button asChild variant="ghost" size="sm" className="gap-2">
+                <Link href={`${BASE_PATH}?propertyId=${propertyId}`}>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Reset filters
+                </Link>
+              </Button>
+            </div>
           ) : null}
         </div>
-      </div>
+      </Card>
 
+      {/* body */}
       <div className="mt-3">
-        <BalanceTable rows={res.rows} />
+        {!propertyId ? (
+          <Card className="p-4 text-sm text-muted-foreground">
+            Pick a property to view balances.
+          </Card>
+        ) : !hasAnyData ? (
+          <Card className="p-4 text-sm text-muted-foreground">
+            No rows for current filters.
+          </Card>
+        ) : (
+          <BalanceTable rows={res.rows} />
+        )}
       </div>
     </div>
   );

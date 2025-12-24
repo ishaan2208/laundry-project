@@ -1,20 +1,10 @@
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-
-import { QuickActions } from "@/components/dashboard/QuickActions";
-import { TodayTiles } from "@/components/dashboard/TodayTiles";
-import { VendorPendingTop } from "@/components/dashboard/VendorPendingTop";
-import {
-  PropertySelector,
-  type PropertyLite,
-} from "@/components/dashboard/PropertySelector";
-import { EmptyStateNoProperty } from "@/components/dashboard/EmptyStateNoProperty";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { PropertyLite } from "@/components/dashboard/PropertySelector";
 
 import { getDashboardSummary } from "@/actions/reports/getDashboardSummary";
 import { getTopVendorPending } from "@/actions/reports/getTopVendorPending";
@@ -54,22 +44,31 @@ export default async function DashboardPage({
   // Housekeeping with 0 assigned properties => empty state
   if (properties.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-md px-4 pt-4 pb-24">
-        <EmptyStateNoProperty />
+      <div className="">
+        <div className="">
+          <DashboardShell
+            isAdmin={isAdmin(user)}
+            properties={[]}
+            selectedPropertyId={undefined}
+            selectedProperty={undefined}
+            summary={null}
+            topVendors={null}
+            showNoPropertyAssigned
+          />
+        </div>
       </div>
     );
   }
 
   const sp = await searchParams;
   const propertyIdParam = sp.propertyId;
+
   const hasParamAccess =
     !!propertyIdParam && properties.some((p) => p.id === propertyIdParam);
 
   // URL behavior:
-  // - if not provided and exactly 1 доступ => auto use it (redirect with ?propertyId=)
+  // - if not provided and exactly 1 accessible => auto use it
   if (!propertyIdParam && properties.length === 1) {
-    // this page lives at /app, so redirect there (not root '/') so the
-    // dashboard server component receives the query param and can fetch data
     redirect(`/app?propertyId=${encodeURIComponent(properties[0].id)}`);
   }
 
@@ -80,7 +79,6 @@ export default async function DashboardPage({
     if (properties.length === 1) {
       redirect(`/app?propertyId=${encodeURIComponent(properties[0].id)}`);
     }
-    // drop the invalid param but keep the user on /app
     redirect(`/app`);
   }
 
@@ -97,72 +95,24 @@ export default async function DashboardPage({
     : [null, null];
 
   return (
-    <div className="mx-auto w-full max-w-md px-4 pt-4 pb-24">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold leading-tight">Dashboard</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {selectedProperty ? (
-              <>
-                Property:{" "}
-                <span className="font-medium text-foreground">
-                  {selectedProperty.name}
-                </span>
-              </>
-            ) : (
-              <>Select a property to see pending & today totals</>
-            )}
-          </div>
-        </div>
+    <div className="relative min-h-[calc(100vh-64px)]">
+      {/* lightweight premium background (static) */}
+      {/* <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 left-1/2 h-64 w-[520px] -translate-x-1/2 rounded-full bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 left-1/3 h-64 w-[520px] -translate-x-1/2 rounded-full bg-gradient-to-r from-fuchsia-500/15 to-violet-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(124,58,237,0.10),transparent_40%),radial-gradient(circle_at_90%_10%,rgba(232,121,249,0.10),transparent_35%)] dark:bg-[radial-gradient(circle_at_10%_0%,rgba(124,58,237,0.18),transparent_45%),radial-gradient(circle_at_90%_10%,rgba(232,121,249,0.18),transparent_40%)]" />
+      </div> */}
 
-        {/* Show selector ONLY if user has >1 accessible properties */}
-        {properties.length > 1 ? (
-          <PropertySelector
-            properties={properties}
-            selectedPropertyId={selectedPropertyId}
-          />
-        ) : null}
+      <div className="relative mx-auto w-full px-4 pt-4 pb-24">
+        <DashboardShell
+          isAdmin={isAdmin(user)}
+          properties={properties}
+          selectedPropertyId={selectedPropertyId}
+          selectedProperty={selectedProperty}
+          summary={summary}
+          topVendors={topVendors}
+        />
       </div>
-
-      <Separator className="my-4" />
-
-      {/* What do I do now? */}
-      <div className="mb-3 text-sm font-medium">Quick actions</div>
-      <QuickActions propertyId={selectedPropertyId} />
-
-      <Separator className="my-4" />
-
-      {/* What’s pending? */}
-      <div className="mb-3 text-sm font-medium">Pending</div>
-      {selectedPropertyId && topVendors ? (
-        <VendorPendingTop propertyId={selectedPropertyId} rows={topVendors} />
-      ) : (
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-4 w-56" />
-              <Skeleton className="h-4 w-48" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Separator className="my-4" />
-
-      {/* Today totals */}
-      <div className="mb-3 text-sm font-medium">Today</div>
-      {summary ? (
-        <TodayTiles summary={summary} />
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <Skeleton className="h-[78px] rounded-xl" />
-          <Skeleton className="h-[78px] rounded-xl" />
-          <Skeleton className="h-[78px] rounded-xl" />
-          <Skeleton className="h-[78px] rounded-xl" />
-        </div>
-      )}
     </div>
   );
 }

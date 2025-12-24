@@ -10,22 +10,21 @@ import { Card } from "@/components/ui/card";
 export default async function VendorsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
   const user = await requireUser();
 
   const propertyId =
-    typeof searchParams.propertyId === "string"
-      ? searchParams.propertyId
-      : undefined;
+    typeof sp.propertyId === "string" ? sp.propertyId : undefined;
   const condition =
-    typeof searchParams.condition === "string"
-      ? (searchParams.condition as LinenCondition)
+    typeof sp.condition === "string"
+      ? (sp.condition as LinenCondition)
       : undefined;
   const linenItemId =
-    typeof searchParams.linenItemId === "string"
-      ? searchParams.linenItemId
-      : undefined;
+    typeof sp.linenItemId === "string" ? sp.linenItemId : undefined;
 
   const properties =
     user.role === UserRole.ADMIN

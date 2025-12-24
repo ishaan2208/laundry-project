@@ -53,11 +53,14 @@ export function BottomSheetSelect(props: {
             <ChevronsUpDown className="h-4 w-4 opacity-70" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-3xl">
+        <SheetContent
+          side="bottom"
+          className="rounded-t-3xl h-[90vh] overflow-hidden"
+        >
           <SheetHeader>
             <SheetTitle>{props.label}</SheetTitle>
           </SheetHeader>
-          <div className="mt-3">
+          <div className="mt-3 h-full overflow-auto">
             <Command>
               <CommandInput placeholder="Search..." />
               <CommandEmpty>No results.</CommandEmpty>

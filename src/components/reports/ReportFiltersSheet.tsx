@@ -1,3 +1,4 @@
+// src/components/reports/ReportFiltersSheet.tsx
 "use client";
 
 import * as React from "react";
@@ -46,6 +47,7 @@ export function ReportFiltersSheet(props: {
   buttonLabel?: string;
 }) {
   const { title = "Filters", fields, buttonLabel = "Filters" } = props;
+
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -67,8 +69,7 @@ export function ReportFiltersSheet(props: {
   function apply() {
     const params = new URLSearchParams(sp.toString());
     Object.entries(draft).forEach(([k, v]) => setOrDelete(params, k, v));
-    // reset cursor when filters change
-    params.delete("cursor");
+    params.delete("cursor"); // reset cursor when filters change
     router.push(`${pathname}?${params.toString()}`);
     setOpen(false);
   }
@@ -90,72 +91,82 @@ export function ReportFiltersSheet(props: {
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="bottom" className="rounded-t-2xl">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
-        </SheetHeader>
-
-        <div className="mt-4 grid gap-4">
-          {fields.map((f) => (
-            <div key={f.key} className="grid gap-2">
-              <Label htmlFor={f.key}>{f.label}</Label>
-
-              {f.type === "text" ? (
-                <Input
-                  id={f.key}
-                  value={draft[f.key] ?? ""}
-                  placeholder={f.placeholder}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, [f.key]: e.target.value }))
-                  }
-                />
-              ) : f.type === "date" ? (
-                <Input
-                  id={f.key}
-                  type="date"
-                  value={draft[f.key] ?? ""}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, [f.key]: e.target.value }))
-                  }
-                />
-              ) : (
-                <Select
-                  value={draft[f.key] ?? ""}
-                  onValueChange={(v) =>
-                    // Select requires non-empty values for items. We use a
-                    // sentinel (`__all`) for the All option and translate it
-                    // back to an empty string in the draft state which the
-                    // rest of the code expects to mean "no value".
-                    setDraft((d) => ({
-                      ...d,
-                      [f.key]: v === "__all" ? "" : v,
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={f.placeholder ?? "Select"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all">All</SelectItem>
-                    {f.options.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          ))}
+      {/* ✅ 90vh sheet + proper padding + scroll region so keyboard won't hide content */}
+      <SheetContent
+        side="bottom"
+        className="h-[90vh] max-h-[90vh] p-0 rounded-t-2xl flex flex-col"
+      >
+        <div className="px-4 pt-4">
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
         </div>
 
-        <div className="mt-6 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={clear}>
-            Clear
-          </Button>
-          <Button className="flex-1" onClick={apply}>
-            Apply
-          </Button>
+        {/* scrollable body */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+          <div className="mt-4 grid gap-4">
+            {fields.map((f) => (
+              <div key={f.key} className="grid gap-2">
+                <Label htmlFor={f.key}>{f.label}</Label>
+
+                {f.type === "text" ? (
+                  <Input
+                    id={f.key}
+                    value={draft[f.key] ?? ""}
+                    placeholder={f.placeholder}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, [f.key]: e.target.value }))
+                    }
+                  />
+                ) : f.type === "date" ? (
+                  <Input
+                    id={f.key}
+                    type="date"
+                    value={draft[f.key] ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, [f.key]: e.target.value }))
+                    }
+                  />
+                ) : (
+                  <Select
+                    value={draft[f.key] ?? ""}
+                    onValueChange={(v) =>
+                      // Select requires non-empty values for items.
+                      // We use sentinel `__all` for "All", stored as empty string in draft.
+                      setDraft((d) => ({
+                        ...d,
+                        [f.key]: v === "__all" ? "" : v,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id={f.key}>
+                      <SelectValue placeholder={f.placeholder ?? "Select"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">All</SelectItem>
+                      {f.options.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* fixed footer actions (with safe-area padding) */}
+        <div className="px-4 py-3 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={clear}>
+              Clear
+            </Button>
+            <Button className="flex-1" onClick={apply}>
+              Apply
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
