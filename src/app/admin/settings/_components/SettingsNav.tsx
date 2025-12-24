@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const tabs = [
-  { href: "/settings", label: "Home" },
-  { href: "/settings/users", label: "Users" },
-  { href: "/settings/properties", label: "Properties" },
-  { href: "/settings/vendors", label: "Vendors" },
-  { href: "/settings/items", label: "Items" },
-  { href: "/settings/locations", label: "Locations" },
+  { href: "/app", label: "Home" },
+  { href: "/admin/settings/users", label: "Users" },
+  { href: "/admin/settings/properties", label: "Properties" },
+  { href: "/admin/settings/vendors", label: "Vendors" },
+  { href: "/admin/settings/items", label: "Items" },
+  { href: "/admin/settings/locations", label: "Locations" },
   // { href: "/settings/users", label: "Users" }, // optional
 ];
 

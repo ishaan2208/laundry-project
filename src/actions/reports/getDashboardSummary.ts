@@ -1,100 +1,87 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { requireUser, requirePropertyAccess } from "@/lib/auth";
+import { requirePropertyAccess, requireUser } from "@/lib/auth";
 import { TxnType } from "@prisma/client";
+
+export type DashboardSummary = {
+  propertyId: string;
+  dateIST: string; // YYYY-MM-DD (Asia/Kolkata)
+  dispatched: number;
+  received: number;
+  procured: number;
+  discarded: number;
+};
 
 const IST_OFFSET_MIN = 330;
 
-function istDayBounds(date = new Date()) {
-  // Build start/end of "today" in Asia/Kolkata, expressed in UTC Date objects
-  const utc = new Date(date);
-  const ist = new Date(utc.getTime() + IST_OFFSET_MIN * 60 * 1000);
-
-  const y = ist.getFullYear();
-  const m = ist.getMonth();
-  const d = ist.getDate();
-
-  const istStart = new Date(y, m, d, 0, 0, 0, 0);
-  const istEnd = new Date(y, m, d, 23, 59, 59, 999);
-
-  return {
-    startUtc: new Date(istStart.getTime() - IST_OFFSET_MIN * 60 * 1000),
-    endUtc: new Date(istEnd.getTime() - IST_OFFSET_MIN * 60 * 1000),
-  };
+function todayISTString() {
+  const now = new Date();
+  const ist = new Date(now.getTime() + IST_OFFSET_MIN * 60_000);
+  return ist.toISOString().slice(0, 10);
 }
 
-export async function getDashboardSummary(input: { propertyId: string }) {
+function istDayRangeUTC(dateIST: string) {
+  // dateIST: YYYY-MM-DD in Asia/Kolkata
+  const [y, m, d] = dateIST.split("-").map((x) => Number(x));
+  // Midnight IST converted to UTC = UTC midnight - 5:30
+  const startUtcMs = Date.UTC(y, m - 1, d, 0, 0, 0) - IST_OFFSET_MIN * 60_000;
+  const endUtcMs = startUtcMs + 24 * 60 * 60_000;
+  return { start: new Date(startUtcMs), end: new Date(endUtcMs) };
+}
+
+export async function getDashboardSummary(
+  propertyId: string,
+  dateIST: string = todayISTString()
+): Promise<DashboardSummary> {
   const user = await requireUser();
-  await requirePropertyAccess(user, input.propertyId);
+  await requirePropertyAccess(user, propertyId);
 
-  const { startUtc, endUtc } = istDayBounds();
+  // Ensure property is active (ADMIN can select any active property)
+  const prop = await prisma.property.findFirst({
+    where: { id: propertyId, isActive: true },
+    select: { id: true },
+  });
+  if (!prop) {
+    return {
+      propertyId,
+      dateIST,
+      dispatched: 0,
+      received: 0,
+      procured: 0,
+      discarded: 0,
+    };
+  }
 
-  const counts = await prisma.transaction.groupBy({
+  const { start, end } = istDayRangeUTC(dateIST);
+
+  const rows = await prisma.transaction.groupBy({
     by: ["type"],
     where: {
-      propertyId: input.propertyId,
-      occurredAt: { gte: startUtc, lte: endUtc },
-      voidedAt: null,
+      propertyId,
+      occurredAt: { gte: start, lt: end },
+      // voidedAt: null, // ✅ exclude voided originals from *counts*
+      type: {
+        in: [
+          TxnType.DISPATCH_TO_LAUNDRY,
+          TxnType.RECEIVE_FROM_LAUNDRY,
+          TxnType.PROCUREMENT,
+          TxnType.DISCARD_LOST,
+        ],
+      },
     },
     _count: { _all: true },
   });
 
-  const map = new Map(counts.map((c) => [c.type, c._count._all]));
-
-  // Top 3 vendors by pending qty (reuse same rule: vendor locations)
-  const pendingGrouped = await prisma.transactionEntry.groupBy({
-    by: ["locationId"],
-    where: {
-      //   transaction: { voidedAt: null },
-      location: { propertyId: input.propertyId, kind: "VENDOR" as any },
-    },
-    _sum: { qtyDelta: true },
-  });
-
-  const locIds = pendingGrouped.map((p) => p.locationId);
-  const locs = await prisma.location.findMany({
-    where: { id: { in: locIds } },
-    select: {
-      id: true,
-      vendorId: true,
-      vendor: { select: { id: true, name: true } },
-    },
-  });
-
-  const locMap = new Map(locs.map((l) => [l.id, l]));
-
-  const vendorTotals = new Map<
-    string,
-    { vendorId: string; vendorName: string; qty: number }
-  >();
-  for (const g of pendingGrouped) {
-    const loc = locMap.get(g.locationId);
-    if (!loc?.vendorId || !loc.vendor) continue;
-    const qty = Number(g._sum.qtyDelta ?? 0);
-
-    const existing = vendorTotals.get(loc.vendorId) ?? {
-      vendorId: loc.vendorId,
-      vendorName: loc.vendor.name,
-      qty: 0,
-    };
-    existing.qty += qty;
-    vendorTotals.set(loc.vendorId, existing);
-  }
-
-  const topVendors = Array.from(vendorTotals.values())
-    .sort((a, b) => Math.abs(b.qty) - Math.abs(a.qty))
-    .slice(0, 3);
+  const getCount = (t: TxnType) =>
+    rows.find((r) => r.type === t)?._count._all ?? 0;
 
   return {
-    ok: true as const,
-    counts: {
-      dispatched: map.get(TxnType.DISPATCH_TO_LAUNDRY) ?? 0,
-      received: map.get(TxnType.RECEIVE_FROM_LAUNDRY) ?? 0,
-      procured: map.get(TxnType.PROCUREMENT) ?? 0,
-      discarded: map.get(TxnType.DISCARD_LOST) ?? 0,
-      resent: map.get(TxnType.RESEND_REWASH) ?? 0,
-    },
-    topVendors,
+    propertyId,
+    dateIST,
+    dispatched: getCount(TxnType.DISPATCH_TO_LAUNDRY),
+    received: getCount(TxnType.RECEIVE_FROM_LAUNDRY),
+    procured: getCount(TxnType.PROCUREMENT),
+    discarded: getCount(TxnType.DISCARD_LOST),
   };
 }

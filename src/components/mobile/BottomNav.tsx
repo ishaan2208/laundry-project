@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { Home, Truck, PackageCheck, ClipboardList, Layers } from "lucide-react";
 
 const items = [
-  { href: "/dispatch", label: "Dispatch", icon: Truck },
-  { href: "/receive", label: "Receive", icon: PackageCheck },
-  { href: "/", label: "Home", icon: Home },
-  { href: "/stock", label: "Stock", icon: Layers },
-  { href: "/txns", label: "Log", icon: ClipboardList },
+  { href: "/app/dispatch", label: "Dispatch", icon: Truck },
+  { href: "/app/receive", label: "Receive", icon: PackageCheck },
+  { href: "/app", label: "Home", icon: Home },
+  { href: "/app/stock", label: "Stock", icon: Layers },
+  { href: "/app/txns", label: "Log", icon: ClipboardList },
 ];
 
 export default function BottomNav() {

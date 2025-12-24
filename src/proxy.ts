@@ -17,12 +17,8 @@ export default clerkMiddleware(
 
     if (isAdminRoute(req)) {
       const { sessionClaims } = await auth();
-
-      // MVP: rely on Clerk publicMetadata role claim for edge-level block.
-      // Keep DB as source of truth in server actions.
-      const role =
-        (sessionClaims as any)?.user?.public_metadata?.role ||
-        (sessionClaims as any)?.publicMetadata?.role;
+      console.log("Session claims:", sessionClaims);
+      const role = (sessionClaims as any)?.metadata?.role; // ✅ correct
 
       if (role !== "ADMIN") {
         return NextResponse.redirect(new URL("/app", req.url));

@@ -3,10 +3,12 @@
 
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 export async function getUsersAdmin() {
   const me = await requireUser();
-  await requireRole(me, ["ADMIN"]);
+
+  await requireRole(me, [UserRole.ADMIN]);
 
   const [users, properties] = await Promise.all([
     prisma.user.findMany({
