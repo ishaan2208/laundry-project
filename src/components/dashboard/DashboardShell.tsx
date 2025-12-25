@@ -16,6 +16,7 @@ import {
   PropertySelector,
   type PropertyLite,
 } from "@/components/dashboard/PropertySelector";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { EmptyStateNoProperty } from "@/components/dashboard/EmptyStateNoProperty";
 
 import type { DashboardSummary } from "@/actions/reports/getDashboardSummary";
@@ -127,13 +128,16 @@ export default function DashboardShell({
                 ) : null}
               </div>
 
-              {/* Selector only if >1 properties */}
-              {properties.length > 1 ? (
-                <PropertySelector
-                  properties={properties}
-                  selectedPropertyId={selectedPropertyId}
-                />
-              ) : null}
+              <div className="flex flex-col items-end gap-2">
+                {/* Selector only if >1 properties */}
+                {properties.length > 1 ? (
+                  <PropertySelector
+                    properties={properties}
+                    selectedPropertyId={selectedPropertyId}
+                  />
+                ) : null}
+                <LogoutButton />
+              </div>
             </div>
           </GlassCard>
         </m.div>
