@@ -1,3 +1,4 @@
+// src/components/dashboard/QuickActions.tsx
 "use client";
 
 import Link from "next/link";
@@ -10,6 +11,7 @@ import {
   Settings,
   BarChart3,
   Zap,
+  ChevronRight,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,48 +30,48 @@ function ActionCard({
   subtitle,
   icon: Icon,
   badge,
-  accent = "violet",
 }: {
   href: string;
   title: string;
   subtitle: string;
   icon: any;
   badge?: string;
-  accent?: "violet" | "fuchsia";
 }) {
-  const ring =
-    accent === "violet"
-      ? "from-violet-600/25 to-fuchsia-600/10"
-      : "from-fuchsia-600/25 to-violet-600/10";
-
   return (
     <Link
       href={href}
-      className="block focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-2xl"
+      className="block rounded-3xl focus:outline-none focus:ring-2 focus:ring-violet-500/40"
     >
-      <GlassCard className="h-full p-3 active:scale-[0.99] transition-transform">
+      <GlassCard
+        className={cn(
+          "h-full p-4",
+          "rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px]",
+          "dark:border-violet-500/15 dark:bg-zinc-950/40",
+          "active:scale-[0.99] transition-transform"
+        )}
+      >
         <div className="flex items-start justify-between gap-2">
           <div
             className={cn(
-              "inline-flex h-11 w-11 items-center justify-center rounded-2xl",
-              "bg-gradient-to-br",
-              ring,
-              "ring-1 ring-white/15 dark:ring-white/10"
+              "inline-flex h-12 w-12 items-center justify-center rounded-2xl",
+              "bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200",
+              "ring-1 ring-violet-200/60 dark:ring-violet-500/15"
             )}
           >
-            <Icon className="h-5 w-5 text-zinc-950/80 dark:text-white" />
+            <Icon className="h-6 w-6" />
           </div>
 
-          {badge ? (
-            <Badge
-              variant="secondary"
-              className="h-6 rounded-full border border-white/15 bg-white/55 px-2 text-[11px] dark:border-white/10 dark:bg-white/5"
-            >
-              {badge}
-            </Badge>
-          ) : (
-            <div className="h-6" />
-          )}
+          <div className="flex items-center gap-2">
+            {badge ? (
+              <Badge
+                variant="secondary"
+                className="h-7 rounded-full border border-violet-200/60 bg-white/60 px-2 text-[11px] backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
+              >
+                {badge}
+              </Badge>
+            ) : null}
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="mt-3">
@@ -93,7 +95,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
         transition={{ staggerChildren: reduceMotion ? 0 : 0.06 }}
         className="space-y-3"
       >
-        {/* Primary 4 actions */}
         <div className="grid grid-cols-2 gap-3 auto-rows-fr">
           <m.div
             variants={fadeUp}
@@ -105,7 +106,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
               subtitle="Soiled → Laundry"
               icon={ArrowUpRight}
               badge="Fast"
-              accent="violet"
             />
           </m.div>
 
@@ -118,7 +118,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
               title="Receive"
               subtitle="Laundry → Clean"
               icon={Download}
-              accent="fuchsia"
             />
           </m.div>
 
@@ -133,7 +132,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                   title="Procurement"
                   subtitle="Add new stock"
                   icon={ShoppingCart}
-                  accent="violet"
                 />
               </m.div>
 
@@ -146,7 +144,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                   title="Discard"
                   subtitle="Lost / damaged out"
                   icon={Trash2}
-                  accent="fuchsia"
                 />
               </m.div>
             </>
@@ -162,7 +159,6 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                   subtitle="View balances"
                   icon={Zap}
                   badge="Live"
-                  accent="violet"
                 />
               </m.div>
 
@@ -175,14 +171,12 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                   title="Logs"
                   subtitle="Recent entries"
                   icon={BarChart3}
-                  accent="fuchsia"
                 />
               </m.div>
             </>
           )}
         </div>
 
-        {/* Admin secondary */}
         {isAdmin ? (
           <m.div
             variants={fadeUp}
@@ -194,14 +188,12 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                 title="Settings"
                 subtitle="Masters & access"
                 icon={Settings}
-                accent="violet"
               />
               <ActionCard
                 href={`/admin/reports${qp}`}
                 title="Reports"
                 subtitle="Pending & analytics"
                 icon={BarChart3}
-                accent="fuchsia"
               />
             </div>
           </m.div>

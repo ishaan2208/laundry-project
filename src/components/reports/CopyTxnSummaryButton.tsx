@@ -66,7 +66,7 @@ export function CopyTxnSummaryButton(props: {
         type="button"
         onClick={copy}
         className={[
-          "h-12 rounded-2xl px-4 text-sm font-semibold",
+          "h-10 rounded-2xl px-4 text-sm font-semibold",
           "bg-violet-600 text-white hover:bg-violet-600/90",
           "dark:bg-violet-500 dark:hover:bg-violet-500/90",
         ].join(" ")}

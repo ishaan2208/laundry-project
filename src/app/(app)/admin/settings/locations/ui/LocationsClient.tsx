@@ -1,7 +1,20 @@
 "use client";
 
+import * as React from "react";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { LazyMotion, domAnimation, m, useReducedMotion } from "framer-motion";
+import {
+  MapPin,
+  Building2,
+  Pencil,
+  Shield,
+  BadgeCheck,
+  BadgeX,
+  Save,
+  Info,
+} from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -14,13 +27,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import PropertySelectorClient from "@/app/(app)/admin/settings/locations/PropertySelectorClient";
+
 import { upsertLocationName } from "@/actions/masters/upsertLocationName";
 import { toggleLocationActive } from "@/actions/masters/toggleLocationActive";
 
@@ -34,6 +42,10 @@ type LocationRow = {
   vendor: { name: string } | null;
 };
 
+function human(v: string) {
+  return v.replaceAll("_", " ");
+}
+
 export default function LocationsClient({
   properties,
   propertyId,
@@ -45,6 +57,7 @@ export default function LocationsClient({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const reduceMotion = useReducedMotion();
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<LocationRow | null>(null);
@@ -71,109 +84,200 @@ export default function LocationsClient({
     }
   }
 
+  const activeCount = initial.filter((l) => l.isActive).length;
+
   return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="text-sm text-muted-foreground">Property</div>
-        <Select
-          value={propertyId ?? ""}
-          onValueChange={(v) =>
-            router.push(
-              `/settings/locations?propertyId=${encodeURIComponent(v)}`
-            )
-          }
-        >
-          <SelectTrigger className="h-11 rounded-xl">
-            <SelectValue placeholder="Select property" />
-          </SelectTrigger>
-          <SelectContent>
-            {properties.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="text-xs text-muted-foreground">
-          Showing locations for: {title}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {initial.map((loc) => (
-          <Card key={loc.id} className="rounded-2xl">
-            <CardContent className="flex items-center justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="truncate font-medium">{loc.name}</div>
-                  <Badge variant="secondary" className="shrink-0">
-                    {loc.kind === "VENDOR" && loc.vendor?.name
-                      ? `Vendor • ${loc.vendor.name}`
-                      : loc.kind}
-                  </Badge>
+    <LazyMotion features={domAnimation}>
+      <div className="space-y-4">
+        <Card className="rounded-3xl border bg-background/40 p-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/30">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border bg-background/50">
+                  <MapPin className="h-5 w-5" />
                 </div>
-
-                <div className="mt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openEdit(loc)}
-                  >
-                    Rename
-                  </Button>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-semibold">
+                    Locations
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {activeCount} active • {initial.length} total
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col items-end gap-2">
-                <div className="text-xs text-muted-foreground">
-                  {loc.isActive ? "Active" : "Disabled"}
+              {/* <div className="mt-3 flex items-start gap-2 rounded-2xl border bg-background/50 p-3 text-xs text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4" />
+                <div className="min-w-0">
+                  Kind is immutable (ledger-safe). Disabling is blocked if stock
+                  remains.
                 </div>
-                <Switch
-                  checked={loc.isActive}
-                  onCheckedChange={(next) =>
-                    startTransition(async () => {
-                      const res = await toggleLocationActive({
-                        id: loc.id,
-                        isActive: next,
-                      });
-                      if (res?.ok === false) alert(res.message ?? "Blocked");
-                      router.refresh();
-                    })
-                  }
+              </div> */}
+            </div>
+
+            <div className="w-[210px] max-w-[55vw]">
+              <div className="text-xs text-muted-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Property
+              </div>
+              <div className=" mt-2">
+                <PropertySelectorClient
+                  properties={properties}
+                  selectedPropertyId={propertyId}
                 />
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>Rename Location</SheetTitle>
-          </SheetHeader>
-
-          <div className="mt-4 space-y-3">
-            <div className="space-y-1.5">
-              <Label>Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-
-            <Button
-              className="w-full"
-              disabled={pending || name.trim().length < 2}
-              onClick={() => startTransition(save)}
-            >
-              Save
-            </Button>
-
-            <div className="text-xs text-muted-foreground">
-              Kind is immutable (ledger-safe). Disabling is blocked if any stock
-              remains in the location.
+              {/* <div className="mt-2 text-xs text-muted-foreground truncate">
+                Showing: <span className="font-medium">{title}</span>
+              </div> */}
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
-    </div>
+        </Card>
+
+        <div className="space-y-2">
+          {initial.map((loc) => (
+            <m.div
+              key={loc.id}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{
+                duration: reduceMotion ? 0 : 0.16,
+                ease: "easeOut",
+              }}
+            >
+              <Card className="rounded-3xl border bg-background/40 backdrop-blur-md supports-[backdrop-filter]:bg-background/30">
+                <CardContent className="flex items-start justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="truncate text-sm font-semibold">
+                        {loc.name}
+                      </div>
+
+                      <Badge variant="secondary" className="rounded-full">
+                        {loc.kind === "VENDOR" && loc.vendor?.name
+                          ? `Vendor • ${loc.vendor.name}`
+                          : human(loc.kind)}
+                      </Badge>
+
+                      {loc.isSystem ? (
+                        <Badge variant="outline" className="rounded-full gap-1">
+                          <Shield className="h-3.5 w-3.5" />
+                          System
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-10 rounded-2xl gap-2"
+                        onClick={() => openEdit(loc)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Rename
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    {loc.isActive ? (
+                      <Badge variant="secondary" className="rounded-full gap-1">
+                        <BadgeCheck className="h-3.5 w-3.5" />
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="destructive"
+                        className="rounded-full gap-1"
+                      >
+                        <BadgeX className="h-3.5 w-3.5" />
+                        Disabled
+                      </Badge>
+                    )}
+
+                    <Switch
+                      checked={loc.isActive}
+                      onCheckedChange={(next) =>
+                        startTransition(async () => {
+                          const res = await toggleLocationActive({
+                            id: loc.id,
+                            isActive: next,
+                          });
+                          if (res?.ok === false)
+                            alert(res.message ?? "Blocked");
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </m.div>
+          ))}
+        </div>
+
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="bottom"
+            className="h-[92vh] max-h-[92vh] p-0 rounded-t-3xl flex flex-col"
+          >
+            <div className="px-4 pt-4">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Pencil className="h-5 w-5" />
+                  Rename Location
+                </SheetTitle>
+              </SheetHeader>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+              <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border bg-background/50 p-3">
+                  <div className="text-xs text-muted-foreground">Kind</div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {edit ? human(edit.kind) : "-"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Name</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="h-12 rounded-2xl"
+                  />
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Disabling is blocked if any stock remains in the location.
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 flex-1 rounded-2xl"
+                  onClick={() => setOpen(false)}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="h-12 flex-1 rounded-2xl gap-2"
+                  disabled={pending || name.trim().length < 2}
+                  onClick={() => startTransition(save)}
+                >
+                  <Save className="h-4 w-4" />
+                  Save
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </LazyMotion>
   );
 }
