@@ -18,14 +18,15 @@ export function QtyStepper(props: {
   disabled?: boolean;
   className?: string;
 }) {
+  const { value, onChange } = props;
+
   const min = props.min ?? 0;
   const max = props.max ?? 999999;
   const step = props.step ?? 1;
 
   const bump = React.useCallback(
-    (delta: number) =>
-      props.onChange(clamp((props.value ?? 0) + delta, min, max)),
-    [props, min, max]
+    (delta: number) => onChange(clamp((value ?? 0) + delta, min, max)),
+    [value, onChange, min, max]
   );
 
   const holdRef = React.useRef<number | null>(null);
@@ -43,12 +44,19 @@ export function QtyStepper(props: {
 
   React.useEffect(() => stopHold, []);
 
+  const btnClass = cn(
+    "h-12 w-12 rounded-2xl",
+    "border border-violet-200/60 bg-white/60 backdrop-blur-[2px] shadow-sm",
+    "dark:border-violet-500/15 dark:bg-zinc-950/40",
+    "hover:bg-violet-600/10 dark:hover:bg-violet-500/10"
+  );
+
   return (
     <div className={cn("flex items-center gap-2", props.className)}>
       <Button
         type="button"
         variant="secondary"
-        className="h-11 w-11 rounded-2xl"
+        className={btnClass}
         disabled={props.disabled || props.value <= min}
         onPointerDown={() => startHold(-step)}
         onPointerUp={stopHold}
@@ -60,14 +68,21 @@ export function QtyStepper(props: {
         <Minus className="h-5 w-5" />
       </Button>
 
-      <div className="min-w-[56px] rounded-2xl border px-3 py-2 text-center text-base font-semibold">
+      <div
+        className={cn(
+          "min-w-[68px] rounded-2xl px-3 py-2 text-center text-base font-semibold",
+          "border border-violet-200/70 bg-white/60 backdrop-blur-[2px]",
+          "dark:border-violet-500/15 dark:bg-zinc-950/40"
+        )}
+        aria-label="Quantity"
+      >
         {props.value}
       </div>
 
       <Button
         type="button"
         variant="secondary"
-        className="h-11 w-11 rounded-2xl"
+        className={btnClass}
         disabled={props.disabled || props.value >= max}
         onPointerDown={() => startHold(step)}
         onPointerUp={stopHold}
