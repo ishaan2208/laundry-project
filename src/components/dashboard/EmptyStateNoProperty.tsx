@@ -1,6 +1,7 @@
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Building2, ShieldAlert } from "lucide-react";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export function EmptyStateNoProperty() {
   return (
@@ -25,9 +26,17 @@ export function EmptyStateNoProperty() {
             Ask admin to assign a property to your account.
           </div>
 
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <Building2 className="h-4 w-4" />
-            Once assigned, you’ll see dispatch/receive options here.
+          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              <div>
+                Once assigned, you’ll see dispatch/receive options here.
+              </div>
+            </div>
+
+            <div>
+              <LogoutButton className="h-8 rounded-2xl" />
+            </div>
           </div>
         </div>
       </div>

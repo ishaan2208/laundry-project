@@ -118,7 +118,7 @@ export default async function VendorBillingPage({
 
       {/* Empty states */}
       {properties.length === 0 ? (
-        <Card className="p-4">
+        <Card className="p-4 m-1">
           <div className="font-medium">No property assigned</div>
           <div className="mt-1 text-sm text-muted-foreground">
             Ask admin to assign you a property.
