@@ -11,6 +11,7 @@ import {
 import {
   CheckCircle2,
   Truck,
+  Loader2,
   PackagePlus,
   Trash2,
   AlertTriangle,
@@ -85,7 +86,7 @@ export default function DispatchPage() {
       setVendorId(saved);
   }, [boot.data?.vendors]);
 
-  const items = boot.data?.items ?? [];
+  const items = React.useMemo(() => boot.data?.items ?? [], [boot.data?.items]);
 
   const selectedIds = React.useMemo(
     () => new Set(lines.map((l) => l.linenItemId)),
@@ -208,7 +209,7 @@ export default function DispatchPage() {
   );
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
+    <div className="min-h-dvh bg-linear-to-b from-violet-50/60 to-background dark:from-violet-950/20">
       <PageHeader title="Dispatch" right={headerRight as any} />
 
       <main className="mx-auto w-full max-w-md space-y-4 px-3 pb-28 pt-4">
@@ -489,8 +490,17 @@ export default function DispatchPage() {
             disabled={!canSubmit}
             onClick={onSubmit}
           >
-            <Truck className="mr-2 h-5 w-5" />
-            Submit Dispatch
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Truck className="mr-2 h-5 w-5" />
+                Submit Dispatch
+              </>
+            )}
           </Button>
         </StickyBar>
       )}

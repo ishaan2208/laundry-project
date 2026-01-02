@@ -52,7 +52,7 @@ export function QtyStepper(props: {
 
   const baseBtn = cn(
     "h-12 w-12 rounded-2xl",
-    "border border-violet-200/60 bg-white/60 backdrop-blur-[2px] shadow-sm",
+    "border border-violet-200/60 cursor-pointer bg-white/60 backdrop-blur-[2px] shadow-sm",
     "dark:border-violet-500/15 dark:bg-zinc-950/40",
     "hover:bg-violet-600/10 dark:hover:bg-violet-500/10",
     "active:scale-[0.98] transition-[transform,background-color] duration-150"
@@ -60,11 +60,11 @@ export function QtyStepper(props: {
 
   const iconBase = "h-5 w-5";
   const plusColor = cn(
-    "text-violet-700 dark:text-violet-200",
+    "text-green-700 dark:text-green-500",
     !canInc && "text-muted-foreground/60 dark:text-muted-foreground/50"
   );
   const minusColor = cn(
-    "text-rose-700 dark:text-rose-200",
+    "text-rose-700 dark:text-rose-500",
     !canDec && "text-muted-foreground/60 dark:text-muted-foreground/50"
   );
 
@@ -73,7 +73,7 @@ export function QtyStepper(props: {
       <div className={cn("flex items-center gap-2", props.className)}>
         <Button
           type="button"
-          variant="secondary"
+          variant={"secondary"}
           className={baseBtn}
           disabled={!canDec}
           onPointerDown={() => startHold(-step)}
