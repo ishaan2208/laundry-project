@@ -26,6 +26,7 @@ export function CopyTxnSummaryButton(props: {
   const { txn } = props;
   const [copied, setCopied] = React.useState(false);
 
+  console.log("txn for copy", txn);
   const text = React.useMemo(() => buildSummary(txn), [txn]);
 
   async function copy() {
@@ -65,8 +66,9 @@ export function CopyTxnSummaryButton(props: {
       <Button
         type="button"
         onClick={copy}
+        size={"sm"}
         className={[
-          "h-10 rounded-2xl px-4 text-sm font-semibold",
+          " rounded-2xl px-2 text-sm font-semibold",
           "bg-violet-600 text-white hover:bg-violet-600/90",
           "dark:bg-violet-500 dark:hover:bg-violet-500/90",
         ].join(" ")}
@@ -74,12 +76,12 @@ export function CopyTxnSummaryButton(props: {
       >
         {copied ? (
           <>
-            <Check className="mr-0.5 h-5 w-5" />
+            <Check className="mr-0.5 h-4 w-4" />
             Copied
           </>
         ) : (
           <>
-            <ClipboardCopy className="mr-0.5 h-5 w-5" />
+            <ClipboardCopy className="mr-0.5 h-4 w-4" />
             Copy
           </>
         )}
