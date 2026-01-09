@@ -21,6 +21,7 @@ export async function getTransactions(input: {
   includeVoided?: boolean;
   cursor?: string; // txn id
   take?: number;
+  includeSystem?: boolean;
 }) {
   const user = await requireUser();
 
@@ -47,6 +48,8 @@ export async function getTransactions(input: {
 
   const where: any = {
     occurredAt: { gte: from, lte: to },
+    ...(input.includeVoided ? {} : { voidedAt: null }),
+    ...(input.includeSystem ? {} : { type: { not: TxnType.VOID_REVERSAL } }),
     ...(input.propertyId ? { propertyId: input.propertyId } : {}),
     ...(input.vendorId ? { vendorId: input.vendorId } : {}),
     ...(input.type ? { type: input.type } : {}),

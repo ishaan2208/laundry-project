@@ -1,14 +1,23 @@
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { isAdmin, requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { TxnType, UserRole } from "@prisma/client";
 import { getTransactions } from "@/actions/reports/getTransactions";
-import { TxnListItem } from "@/components/reports/TxnListItem";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { TxnListItemExpandable } from "@/components/reports/TxnListItemExpandable";
+
+import {
+  format,
+  isToday,
+  isYesterday,
+  parse,
+  startOfDay,
+  compareDesc,
+} from "date-fns";
 import {
   ListChecks,
   SlidersHorizontal,
@@ -17,10 +26,22 @@ import {
   Truck,
   Tag,
   CalendarRange,
+  CalendarDays,
 } from "lucide-react";
 
 function humanType(t: TxnType) {
   return t.replaceAll("_", " ");
+}
+
+function dateKey(d: Date) {
+  return format(d, "yyyy-MM-dd");
+}
+
+function labelForDateKey(key: string) {
+  const d = parse(key, "yyyy-MM-dd", new Date());
+  if (isToday(d)) return `Today · ${format(d, "dd MMM")}`;
+  if (isYesterday(d)) return `Yesterday · ${format(d, "dd MMM")}`;
+  return format(d, "dd MMM");
 }
 
 export default async function TxnsPage({
@@ -31,6 +52,7 @@ export default async function TxnsPage({
     | Record<string, string | string[] | undefined>;
 }) {
   const user = await requireUser();
+  const admin = isAdmin(user);
 
   const sp = (await searchParams) as Record<
     string,
@@ -65,7 +87,8 @@ export default async function TxnsPage({
     redirect(`/app/txns?propertyId=${properties[0].id}`);
   }
 
-  const vendors = propertyId
+  // Only used for filter dropdown. Names for list are fetched later by ids.
+  const vendorsForFilter = propertyId
     ? await prisma.vendor.findMany({
         where: { isActive: true },
         select: { id: true, name: true },
@@ -97,6 +120,26 @@ export default async function TxnsPage({
     );
   }
 
+  // Build vendorName map even when propertyId is not selected
+  const vendorIds = Array.from(
+    new Set(res.rows.map((r: any) => r.vendorId).filter(Boolean))
+  ) as string[];
+
+  const vendorNameMap = vendorIds.length
+    ? new Map(
+        (
+          await prisma.vendor.findMany({
+            where: { id: { in: vendorIds } },
+            select: { id: true, name: true },
+          })
+        ).map((v) => [v.id, v.name] as const)
+      )
+    : new Map<string, string>();
+
+  const propertyNameMap = new Map(
+    properties.map((p) => [p.id, p.name] as const)
+  );
+
   const nextHref = res.nextCursor
     ? (() => {
         const params = new URLSearchParams();
@@ -113,11 +156,11 @@ export default async function TxnsPage({
     : null;
 
   const activePills: Array<{ icon: React.ReactNode; text: string }> = [];
-  const propName = propertyId
-    ? properties.find((p) => p.id === propertyId)?.name
-    : undefined;
+  const propName = propertyId ? propertyNameMap.get(propertyId) : undefined;
+
   const vendorName = vendorId
-    ? vendors.find((v) => v.id === vendorId)?.name
+    ? vendorsForFilter.find((v) => v.id === vendorId)?.name ??
+      vendorNameMap.get(vendorId)
     : undefined;
 
   if (propName)
@@ -142,6 +185,21 @@ export default async function TxnsPage({
       icon: <ArrowDown className="h-4 w-4" />,
       text: "Including voided",
     });
+
+  // --- Group rows by date (occurredAt) ---
+  const map = new Map<string, any[]>();
+  for (const r of res.rows as any[]) {
+    const d =
+      r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt);
+    const k = dateKey(d);
+    map.set(k, [...(map.get(k) ?? []), r]);
+  }
+
+  const dateKeys = Array.from(map.keys()).sort((a, b) => {
+    const da = startOfDay(parse(a, "yyyy-MM-dd", new Date()));
+    const db = startOfDay(parse(b, "yyyy-MM-dd", new Date()));
+    return compareDesc(da, db);
+  });
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
@@ -182,7 +240,10 @@ export default async function TxnsPage({
                 key: "vendorId",
                 label: "Vendor",
                 type: "select",
-                options: vendors.map((v) => ({ value: v.id, label: v.name })),
+                options: vendorsForFilter.map((v) => ({
+                  value: v.id,
+                  label: v.name,
+                })),
                 placeholder: "All vendors",
               },
               {
@@ -195,21 +256,9 @@ export default async function TxnsPage({
                 })),
                 placeholder: "All types",
               },
-              {
-                key: "from",
-                label: "From date",
-                type: "date",
-              },
-              {
-                key: "to",
-                label: "To date",
-                type: "date",
-              },
-              {
-                key: "includeVoided",
-                label: "Include voided",
-                type: "switch", // ✅ upgraded
-              },
+              { key: "from", label: "From date", type: "date" },
+              { key: "to", label: "To date", type: "date" },
+              { key: "includeVoided", label: "Include voided", type: "switch" },
               {
                 key: "q",
                 label: "Search (optional)",
@@ -246,10 +295,48 @@ export default async function TxnsPage({
           </div>
         )}
 
-        {/* List */}
-        <div className="mt-3 grid gap-2">
-          {res.rows.length ? (
-            res.rows.map((r) => <TxnListItem key={r.id} row={r} />)
+        {/* Date-wise sections */}
+        <div className="mt-3 space-y-4">
+          {dateKeys.length ? (
+            dateKeys.map((k) => {
+              const rows = map.get(k)!;
+              return (
+                <section key={k} className="space-y-2">
+                  <div className="sticky top-2 z-10">
+                    <div className="inline-flex items-center gap-2 rounded-2xl border bg-white/70 px-3 py-1.5 text-sm shadow-sm backdrop-blur dark:bg-zinc-950/40">
+                      <CalendarDays className="h-4 w-4" />
+                      <span className="font-semibold">
+                        {labelForDateKey(k)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        • {rows.length} txn{rows.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    {rows.map((r: any) => (
+                      <TxnListItemExpandable
+                        key={r.id}
+                        admin={admin}
+                        row={{
+                          id: r.id,
+                          type: r.type,
+                          occurredAt: r.occurredAt,
+                          reference: r.reference,
+                          propertyName:
+                            propertyNameMap.get(r.propertyId) ?? "Unknown",
+                          vendorName: r.vendorId
+                            ? vendorNameMap.get(r.vendorId) ?? null
+                            : null,
+                          voidedAt: r.voidedAt ?? null,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })
           ) : (
             <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm text-muted-foreground backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
               No transactions for current filters.
