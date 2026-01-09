@@ -11,8 +11,6 @@ import {
   Truck,
   NotebookText,
   ShieldAlert,
-  ArrowUpRight,
-  ArrowDownLeft,
 } from "lucide-react";
 
 export type TxnDetailDTO = {
@@ -53,15 +51,30 @@ function fmt(dt: string | Date) {
   return format(d, "dd MMM, hh:mm a");
 }
 
+function getStaffEntries(entries: TxnDetailDTO["entries"]) {
+  // Staff view: show only destination (IN) entries.
+  const positives = entries.filter((e) => e.qtyDelta > 0);
+
+  // Fallback: if a txn genuinely has no positive entries (rare),
+  // show all entries but as ABS qty (still avoids negatives on screen).
+  if (positives.length > 0) return positives;
+
+  return entries.map((e) => ({ ...e, qtyDelta: Math.abs(e.qtyDelta) }));
+}
+
 export function TxnDetailContent({
   txn,
   headerSlot,
   compact = false,
+  staffMode = true, // ✅ default: staff-friendly
 }: {
   txn: TxnDetailDTO;
   headerSlot?: React.ReactNode;
   compact?: boolean;
+  staffMode?: boolean;
 }) {
+  const visibleEntries = staffMode ? getStaffEntries(txn.entries) : txn.entries;
+
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
       {/* Meta */}
@@ -160,11 +173,13 @@ export function TxnDetailContent({
       <Separator className="opacity-60" />
 
       {/* Entries */}
-      <div className="text-sm font-semibold">Entries</div>
+      <div className="text-sm font-semibold">
+        {staffMode ? "Added to" : "Entries"}
+      </div>
+
       <div className="grid gap-2">
-        {txn.entries.map((e) => {
-          const isOut = e.qtyDelta < 0;
-          const qty = Math.abs(e.qtyDelta); // ✅ no negative numbers shown
+        {visibleEntries.map((e) => {
+          const qty = Math.abs(e.qtyDelta); // always show positive number on screen
           return (
             <Card
               key={e.id}
@@ -172,24 +187,9 @@ export function TxnDetailContent({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="truncate text-base font-semibold">
-                      {e.linenItem.name}
-                    </div>
-                    <Badge
-                      variant={isOut ? "outline" : "secondary"}
-                      className="rounded-xl"
-                      title={isOut ? "Outgoing" : "Incoming"}
-                    >
-                      {isOut ? (
-                        <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
-                      ) : (
-                        <ArrowDownLeft className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      {isOut ? "OUT" : "IN"}
-                    </Badge>
+                  <div className="truncate text-base font-semibold">
+                    {e.linenItem.name}
                   </div>
-
                   <div className="mt-1 truncate text-xs text-muted-foreground">
                     {e.location.name} · {label(e.location.kind)} ·{" "}
                     {label(e.condition)}
@@ -198,7 +198,7 @@ export function TxnDetailContent({
                 </div>
 
                 <div className="text-right">
-                  <div className="text-lg font-semibold tabular-nums">
+                  <div className="text-lg font-semibold tabular-nums text-violet-700 dark:text-violet-200">
                     {qty}
                   </div>
                   <div className="text-xs text-muted-foreground">qty</div>
@@ -207,6 +207,12 @@ export function TxnDetailContent({
             </Card>
           );
         })}
+
+        {!visibleEntries.length ? (
+          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 text-sm text-muted-foreground dark:border-violet-500/15 dark:bg-zinc-950/40">
+            No staff-visible entries.
+          </Card>
+        ) : null}
       </div>
     </div>
   );

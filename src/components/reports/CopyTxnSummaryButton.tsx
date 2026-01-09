@@ -74,13 +74,13 @@ export function CopyTxnSummaryButton(props: {
       >
         {copied ? (
           <>
-            <Check className="mr-2 h-5 w-5" />
+            <Check className="mr-0.5 h-5 w-5" />
             Copied
           </>
         ) : (
           <>
-            <ClipboardCopy className="mr-2 h-5 w-5" />
-            Copy summary
+            <ClipboardCopy className="mr-0.5 h-5 w-5" />
+            Copy
           </>
         )}
       </Button>

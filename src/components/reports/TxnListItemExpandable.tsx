@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { CopyTxnSummaryButton } from "./CopyTxnSummaryButton";
 
 import {
   ChevronDown,
@@ -42,33 +43,32 @@ function fmt(dt: string | Date) {
   return format(d, "dd MMM, hh:mm a");
 }
 
-function composeTxnMessage(t: TxnDetailDTO) {
-  const header = [
-    `*TXN* ${t.type.replaceAll("_", " ")}`,
-    `Property: ${t.property.name}`,
-    t.vendor?.name ? `Vendor: ${t.vendor.name}` : undefined,
-    `When: ${
-      typeof t.occurredAt === "string" ? fmt(t.occurredAt) : fmt(t.occurredAt)
-    }`,
-    t.reference ? `Ref: ${t.reference}` : undefined,
-    t.note ? `Note: ${t.note}` : undefined,
-    t.voidedAt ? `Status: VOIDED` : `Status: ACTIVE`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+// function composeTxnMessage(t: TxnDetailDTO) {
+//   const header = [
+//     `*TXN* ${t.type.replaceAll("_", " ")}`,
+//     `Property: ${t.property.name}`,
+//     t.vendor?.name ? `Vendor: ${t.vendor.name}` : undefined,
+//     `When: ${fmt(t.occurredAt)}`,
+//     t.reference ? `Ref: ${t.reference}` : undefined,
+//     t.note ? `Note: ${t.note}` : undefined,
+//     t.voidedAt ? `Status: VOIDED` : `Status: ACTIVE`,
+//   ]
+//     .filter(Boolean)
+//     .join("\n");
 
-  const lines = t.entries
-    .map((e) => {
-      const dir = e.qtyDelta < 0 ? "OUT" : "IN";
-      const qty = Math.abs(e.qtyDelta);
-      return `- ${e.linenItem.name} · ${e.condition.replaceAll("_", " ")} · ${
-        e.location.name
-      } · ${dir}: ${qty}`;
-    })
-    .join("\n");
+//   const staffEntries = t.entries.filter((e) => e.qtyDelta > 0);
 
-  return `${header}\n\n*Entries*\n${lines}\n\nTxn ID: ${t.id}`;
-}
+//   const lines = (staffEntries.length ? staffEntries : t.entries)
+//     .map((e) => {
+//       const qty = Math.abs(e.qtyDelta);
+//       return `- ${e.linenItem.name} · ${e.condition.replaceAll("_", " ")} · ${
+//         e.location.name
+//       } : ${qty}`;
+//     })
+//     .join("\n");
+
+//   return `${header}\n\n*Added to*\n${lines}\n\nTxn ID: ${t.id}`;
+// }
 
 export function TxnListItemExpandable({
   row,
@@ -126,13 +126,6 @@ export function TxnListItemExpandable({
     const next = !open;
     setOpen(next);
     if (next && !detail) await ensureDetail();
-  }
-
-  async function onCopy() {
-    const t = detail ?? (await ensureDetail());
-    if (!t) return;
-    await navigator.clipboard.writeText(composeTxnMessage(t));
-    T.success("Copied transaction summary!", { duration: 900 });
   }
 
   function startEdit() {
@@ -231,21 +224,7 @@ export function TxnListItemExpandable({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-9 rounded-2xl"
-                onClick={onCopy}
-                disabled={loading}
-                aria-label="Copy transaction"
-              >
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Clipboard className="mr-2 h-4 w-4" />
-                )}
-                Copy
-              </Button>
+              {detail && <CopyTxnSummaryButton txn={detail as any} />}
 
               <Button
                 size="icon"
