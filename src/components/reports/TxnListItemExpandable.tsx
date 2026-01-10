@@ -484,9 +484,9 @@ export function TxnListItemExpandable({
               <div className="space-y-4 pb-24">
                 {/* OccurredAt */}
                 <div className="space-y-2">
-                  <div className="text-xs font-semibold text-muted-foreground">
+                  {/* <div className="text-xs font-semibold text-muted-foreground">
                     Occurred At (no dates before Jan 2026)
-                  </div>
+                  </div> */}
                   {/* 
                   <DatePicker
                     selected={occurredAtDraft}
