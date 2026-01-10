@@ -70,6 +70,7 @@ export default async function TxnDetailPage({
 
           {shareable ? (
             <CopyTxnSummaryButton
+              className=""
               txn={{
                 id: t.id,
                 type: t.type,
