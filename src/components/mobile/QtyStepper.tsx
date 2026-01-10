@@ -93,7 +93,7 @@ export function QtyStepper(props: {
           animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
           className={cn(
-            "min-w-[68px] rounded-2xl px-3 py-2 text-center text-base font-semibold tabular-nums",
+            "min-w-[68px] rounded-2xl px-1 py-1 text-center text-base font-semibold tabular-nums",
             "border border-violet-200/70 bg-white/60 backdrop-blur-[2px]",
             "dark:border-violet-500/15 dark:bg-zinc-950/40"
           )}
