@@ -497,7 +497,7 @@ export default function ReceivePage() {
                           <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
                             <CardContent className="p-4">
                               {/* Header row */}
-                              <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start justify-between gap-1">
                                 <div className="min-w-0">
                                   <div className="truncate text-base font-semibold leading-tight">
                                     {item?.name ?? "Item"}
@@ -543,7 +543,7 @@ export default function ReceivePage() {
                               <Separator className="my-3 opacity-60" />
 
                               {/* Qty rows */}
-                              <div className="grid grid-cols-1 gap-3">
+                              <div className="grid grid-cols-1 gap-1">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <StatusPill condition="CLEAN" />

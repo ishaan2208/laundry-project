@@ -70,9 +70,10 @@ export function QtyStepper(props: {
 
   return (
     <LazyMotion features={domAnimation}>
-      <div className={cn("flex items-center gap-2", props.className)}>
+      <div className={cn("flex items-center gap-1", props.className)}>
         <Button
           type="button"
+          size={"icon"}
           variant={"secondary"}
           className={baseBtn}
           disabled={!canDec}
@@ -103,6 +104,7 @@ export function QtyStepper(props: {
 
         <Button
           type="button"
+          size={"icon"}
           variant="secondary"
           className={baseBtn}
           disabled={!canInc}
