@@ -58,7 +58,7 @@ export function ItemPickerSheet(props: {
         className={cn(
           "h-[90vh] rounded-t-3xl p-0",
           "border-violet-200/60 bg-background/80 backdrop-blur-[2px]",
-          "dark:border-violet-500/15"
+          "dark:border-violet-500/15 overflow-scroll"
         )}
       >
         <div className="flex h-full flex-col">
