@@ -279,7 +279,7 @@ export function TxnDetailContent({
       </div>
 
       {/* Grouped destination cards */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-1 w-full">
         {byLocation.map((grp, idx) => {
           const Icon = locationIcon(grp.locationKind);
 
@@ -295,7 +295,7 @@ export function TxnDetailContent({
                 delay: Math.min(idx * 0.03, 0.15),
               }}
             >
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/70 shadow-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
+              <Card className="rounded-3xl border border-violet-200/60 bg-white/70 shadow-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40 w-full">
                 {/* Location header */}
                 <div className="flex items-start justify-between gap-3 p-4 pb-3">
                   <div className="min-w-0">

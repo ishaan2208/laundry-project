@@ -487,7 +487,7 @@ export function TxnListItemExpandable({
                   <div className="text-xs font-semibold text-muted-foreground">
                     Occurred At (no dates before Jan 2026)
                   </div>
-
+                  {/* 
                   <DatePicker
                     selected={occurredAtDraft}
                     onChange={(d) => setOccurredAtDraft(d as Date)}
@@ -498,7 +498,7 @@ export function TxnListItemExpandable({
                     customInput={
                       <Input className="h-12 rounded-2xl" readOnly />
                     }
-                  />
+                  /> */}
                 </div>
 
                 {/* Reason */}

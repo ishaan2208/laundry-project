@@ -428,7 +428,8 @@ export default function DispatchPage() {
                                   <Button
                                     type="button"
                                     variant="ghost"
-                                    className="h-12 w-12 rounded-2xl text-muted-foreground hover:text-foreground"
+                                    className=" text-red-500"
+                                    size={"icon"}
                                     onClick={() => onRemoveItem(l.linenItemId)}
                                     aria-label="Remove item"
                                   >

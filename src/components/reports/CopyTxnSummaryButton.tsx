@@ -59,14 +59,14 @@ export function CopyTxnSummaryButton(props: {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Badge
+    <div className="flex items-center">
+      {/* <Badge
         variant="secondary"
         className="hidden sm:inline-flex rounded-2xl border border-violet-200/60 bg-white/60 text-xs backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
       >
         <Share2 className="mr-1 h-4 w-4" />
         Share
-      </Badge>
+      </Badge> */}
 
       <Button
         type="button"
