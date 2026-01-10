@@ -3,8 +3,11 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Share2, ClipboardCopy } from "lucide-react";
+import { Check, Share2, ClipboardCopy } from "lucide-react";
 import { TxnType, LinenCondition } from "@prisma/client";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import T from "react-hot-toast";
 
 type Entry = {
   linenItemName: string;
@@ -13,6 +16,7 @@ type Entry = {
 };
 
 export function CopyTxnSummaryButton(props: {
+  className: string;
   txn: {
     id: string;
     type: TxnType;
@@ -23,7 +27,7 @@ export function CopyTxnSummaryButton(props: {
     entries: Entry[];
   };
 }) {
-  const { txn } = props;
+  const { txn, className } = props;
   const [copied, setCopied] = React.useState(false);
 
   console.log("txn for copy", txn);
@@ -33,6 +37,7 @@ export function CopyTxnSummaryButton(props: {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      T.success("Copied summary to clipboard");
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
       // fallback
@@ -66,25 +71,41 @@ export function CopyTxnSummaryButton(props: {
       <Button
         type="button"
         onClick={copy}
-        size={"sm"}
-        className={[
-          " rounded-2xl px-2 text-sm font-semibold",
+        className={cn(
+          "h-11 rounded-2xl w-full justify-center gap-2",
           "bg-violet-600 text-white hover:bg-violet-600/90",
           "dark:bg-violet-500 dark:hover:bg-violet-500/90",
-        ].join(" ")}
+          "shadow-sm shadow-violet-600/10 dark:shadow-violet-500/10",
+          "focus-visible:ring-2 focus-visible:ring-violet-500/40",
+          className
+        )}
         aria-label="Copy summary to clipboard"
       >
-        {copied ? (
-          <>
-            <Check className="mr-0.5 h-4 w-4" />
-            Copied
-          </>
-        ) : (
-          <>
-            <ClipboardCopy className="mr-0.5 h-4 w-4" />
-            Copy
-          </>
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          {copied ? (
+            <motion.span
+              key="copied"
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              className="inline-flex items-center gap-2"
+            >
+              <Check className="h-4 w-4" />
+              <span className="text-sm font-semibold">Copied</span>
+            </motion.span>
+          ) : (
+            <motion.span
+              key="copy"
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              className="inline-flex items-center gap-2"
+            >
+              <ClipboardCopy className="h-4 w-4" />
+              <span className="text-sm font-semibold">Copy</span>
+            </motion.span>
+          )}
+        </AnimatePresence>
       </Button>
     </div>
   );

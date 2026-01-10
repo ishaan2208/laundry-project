@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-
+import { cn } from "@/lib/utils";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -272,7 +272,7 @@ export function TxnListItemExpandable({
       T.success("Updated (old txn voided + new txn created)");
 
       setEditOpen(false);
-      router.push(`/app/txns/${json.newTransactionId}`);
+      //   router.push(`/app/txns/${json.newTransactionId}`);
       router.refresh();
     } catch (e: any) {
       T.error(e?.message ?? "Failed to save edits.");
@@ -285,6 +285,7 @@ export function TxnListItemExpandable({
   const statusTone = isVoided
     ? "bg-red-500/10 text-red-700 dark:text-red-200 dark:bg-red-500/15 border-red-500/20"
     : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 dark:bg-emerald-500/15 border-emerald-500/20";
+  const cols = admin ? "grid-cols-3" : "grid-cols-2";
 
   return (
     <>
@@ -301,11 +302,11 @@ export function TxnListItemExpandable({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="grid h-9 w-9 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    <CalendarClock className="h-5 w-5" />
+                    <CalendarClock className="h-4 w-4" />
                   </span>
 
                   <div className="min-w-0">
-                    <div className="truncate text-base font-semibold">
+                    <div className="truncate  text-sm font-semibold">
                       {humanType(row.type)}
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
@@ -341,33 +342,7 @@ export function TxnListItemExpandable({
                   ) : null}
                 </div>
               </div>
-
               <div className="flex items-center gap-2">
-                {/* Copy button same as detail page — only when detail exists */}
-                {detail ? (
-                  <CopyTxnSummaryButton txn={buildCopyModel(detail, row)} />
-                ) : (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="h-10 rounded-2xl"
-                    disabled
-                    aria-label="Copy (load details first)"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading
-                      </>
-                    ) : (
-                      <>
-                        <FileWarning className="mr-2 h-4 w-4" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                )}
-
                 <Button
                   size="icon"
                   variant="ghost"
@@ -409,15 +384,19 @@ export function TxnListItemExpandable({
                   ) : detail ? (
                     <div className="space-y-3">
                       {/* actions row */}
-                      <div className="flex items-center justify-between gap-2">
+                      <div className={cn("grid gap-2", cols)}>
                         <Button
                           asChild
                           variant="secondary"
-                          className="h-11 rounded-2xl"
+                          className={cn(
+                            "h-11 w-full rounded-2xl justify-center gap-2",
+                            "border border-violet-200/60 bg-white/70 hover:bg-violet-50",
+                            "dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+                          )}
                         >
                           <Link href={`/app/txns/${row.id}`}>
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            Open
+                            <ExternalLink className="h-4 w-4" />
+                            <span className="text-sm font-semibold">Open</span>
                           </Link>
                         </Button>
 
@@ -425,14 +404,43 @@ export function TxnListItemExpandable({
                           <Button
                             type="button"
                             variant="secondary"
-                            className="h-11 rounded-2xl"
+                            className={cn(
+                              "h-11 w-full rounded-2xl justify-center gap-2",
+                              "border border-violet-200/60 bg-white/70 hover:bg-violet-50",
+                              "dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+                            )}
                             onClick={startEdit}
-                            disabled={Boolean(detail.voidedAt)}
+                            disabled={Boolean(detail?.voidedAt)}
                           >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit
+                            <Pencil className="h-4 w-4" />
+                            <span className="text-sm font-semibold">Edit</span>
                           </Button>
                         ) : null}
+
+                        {/* Copy only when expanded */}
+                        {detail ? (
+                          <CopyTxnSummaryButton
+                            txn={buildCopyModel(detail, row)}
+                            className="h-11 w-full rounded-2xl"
+                          />
+                        ) : (
+                          <Button
+                            type="button"
+                            disabled
+                            className={cn(
+                              "h-11 w-full rounded-2xl justify-center gap-2",
+                              "bg-violet-600/40 text-white dark:bg-violet-500/30"
+                            )}
+                            aria-label="Copy (load details first)"
+                          >
+                            {loading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileWarning className="h-4 w-4" />
+                            )}
+                            <span className="text-sm font-semibold">Copy</span>
+                          </Button>
+                        )}
                       </div>
 
                       {/* Staff-friendly detail: destination only */}
@@ -455,7 +463,7 @@ export function TxnListItemExpandable({
         <Sheet open={editOpen} onOpenChange={setEditOpen}>
           <SheetContent
             side="bottom"
-            className="max-h-[92dvh] rounded-t-3xl border border-violet-200/60 bg-white/90 p-0 backdrop-blur dark:border-violet-500/15 dark:bg-zinc-950/85"
+            className="max-h-[92dvh] rounded-t-3xl border border-violet-200/60 bg-white/90 p-0 backdrop-blur dark:border-violet-500/15 dark:bg-zinc-950/85 p-2 overflow-scroll"
           >
             <div className="p-4 sm:p-6">
               <SheetHeader className="space-y-1">
