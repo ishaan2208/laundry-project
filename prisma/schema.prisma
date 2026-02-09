@@ -106,6 +106,7 @@ model Vendor {
 
   locations    Location[]
   transactions Transaction[]
+  prices       Pricing[]
 
   @@index([isActive])
 }
@@ -120,6 +121,7 @@ model LinenItem {
   updatedAt DateTime @updatedAt
 
   entries TransactionEntry[]
+  prices  Pricing[]
 
   @@index([isActive])
 }
@@ -231,4 +233,21 @@ model TransactionEntry {
   @@index([propertyId, linenItemId, condition])
   @@index([propertyId, locationId, linenItemId, condition])
   @@index([locationId, linenItemId, condition])
+}
+
+model Pricing {
+  id          String  @id @default(cuid())
+  vendorId    String
+  linenItemId String
+  unitPrice   Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendor    Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  linenItem LinenItem @relation(fields: [linenItemId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, linenItemId])
+  @@index([vendorId])
+  @@index([linenItemId])
 }

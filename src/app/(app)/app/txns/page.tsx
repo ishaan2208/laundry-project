@@ -48,8 +48,8 @@ export default async function TxnsPage({
   searchParams,
 }: {
   searchParams:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
+  | Promise<Record<string, string | string[] | undefined>>
+  | Record<string, string | string[] | undefined>;
 }) {
   const user = await requireUser();
   const admin = isAdmin(user);
@@ -72,16 +72,16 @@ export default async function TxnsPage({
   const properties =
     user.role === UserRole.ADMIN
       ? await prisma.property.findMany({
-          where: { isActive: true },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        })
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
       : await prisma.userProperty
-          .findMany({
-            where: { userId: user.id },
-            select: { property: { select: { id: true, name: true } } },
-          })
-          .then((rows) => rows.map((r) => r.property));
+        .findMany({
+          where: { userId: user.id },
+          select: { property: { select: { id: true, name: true } } },
+        })
+        .then((rows) => rows.map((r) => r.property));
 
   if (!propertyId && properties.length === 1) {
     redirect(`/app/txns?propertyId=${properties[0].id}`);
@@ -90,10 +90,10 @@ export default async function TxnsPage({
   // Only used for filter dropdown. Names for list are fetched later by ids.
   const vendorsForFilter = propertyId
     ? await prisma.vendor.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    })
     : [];
 
   const res = await getTransactions({
@@ -127,13 +127,13 @@ export default async function TxnsPage({
 
   const vendorNameMap = vendorIds.length
     ? new Map(
-        (
-          await prisma.vendor.findMany({
-            where: { id: { in: vendorIds } },
-            select: { id: true, name: true },
-          })
-        ).map((v) => [v.id, v.name] as const)
-      )
+      (
+        await prisma.vendor.findMany({
+          where: { id: { in: vendorIds } },
+          select: { id: true, name: true },
+        })
+      ).map((v) => [v.id, v.name] as const)
+    )
     : new Map<string, string>();
 
   const propertyNameMap = new Map(
@@ -142,17 +142,17 @@ export default async function TxnsPage({
 
   const nextHref = res.nextCursor
     ? (() => {
-        const params = new URLSearchParams();
-        if (propertyId) params.set("propertyId", propertyId);
-        if (vendorId) params.set("vendorId", vendorId);
-        if (type) params.set("type", type);
-        if (q) params.set("q", q);
-        if (from) params.set("from", from);
-        if (to) params.set("to", to);
-        if (includeVoided) params.set("includeVoided", "1");
-        params.set("cursor", res.nextCursor);
-        return `/app/txns?${params.toString()}`;
-      })()
+      const params = new URLSearchParams();
+      if (propertyId) params.set("propertyId", propertyId);
+      if (vendorId) params.set("vendorId", vendorId);
+      if (type) params.set("type", type);
+      if (q) params.set("q", q);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (includeVoided) params.set("includeVoided", "1");
+      params.set("cursor", res.nextCursor);
+      return `/app/txns?${params.toString()}`;
+    })()
     : null;
 
   const activePills: Array<{ icon: React.ReactNode; text: string }> = [];
@@ -160,7 +160,7 @@ export default async function TxnsPage({
 
   const vendorName = vendorId
     ? vendorsForFilter.find((v) => v.id === vendorId)?.name ??
-      vendorNameMap.get(vendorId)
+    vendorNameMap.get(vendorId)
     : undefined;
 
   if (propName)

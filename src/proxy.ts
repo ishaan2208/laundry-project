@@ -36,7 +36,7 @@ export default clerkMiddleware(
       "https://laundry.stayzenvana.com",
       "https://laundry.stayzenvana.com/",
       "http://localhost:3000",
-    ],
+ "http://localhost:3005",    ],
   }
 );
 

@@ -22,8 +22,8 @@ export default async function VendorBillingPage({
   searchParams,
 }: {
   searchParams:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
+  | Promise<Record<string, string | string[] | undefined>>
+  | Record<string, string | string[] | undefined>;
 }) {
   const user = await requireUser();
   const sp = (await searchParams) as Record<string, string | undefined>;
@@ -32,16 +32,16 @@ export default async function VendorBillingPage({
   const properties =
     user.role === "ADMIN"
       ? await prisma.property.findMany({
-          where: { isActive: true },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        })
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
       : await prisma.userProperty
-          .findMany({
-            where: { userId: user.id },
-            select: { property: { select: { id: true, name: true } } },
-          })
-          .then((rows) => rows.map((r) => r.property));
+        .findMany({
+          where: { userId: user.id },
+          select: { property: { select: { id: true, name: true } } },
+        })
+        .then((rows) => rows.map((r) => r.property));
 
   // ✅ Vendors (active)
   const vendors = await prisma.vendor.findMany({
@@ -65,10 +65,10 @@ export default async function VendorBillingPage({
 
   const report = canRun
     ? await getVendorMonthlyCleaned({
-        propertyId: propertyId!,
-        vendorId: vendorId!,
-        month,
-      })
+      propertyId: propertyId!,
+      vendorId: vendorId!,
+      month,
+    })
     : null;
 
   return (

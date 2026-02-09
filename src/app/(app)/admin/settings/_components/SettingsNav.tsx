@@ -12,6 +12,7 @@ import {
   Package,
   MapPin,
   ArrowRight,
+  IndianRupee,
 } from "lucide-react";
 
 const tabs = [
@@ -20,6 +21,7 @@ const tabs = [
   { href: "/admin/settings/vendors", label: "Vendors", icon: Truck },
   { href: "/admin/settings/items", label: "Items", icon: Package },
   { href: "/admin/settings/locations", label: "Locations", icon: MapPin },
+  { href: "/admin/settings/pricing", label: "Pricing", icon: IndianRupee },
 ];
 
 function isActivePath(pathname: string, href: string) {

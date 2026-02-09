@@ -15,20 +15,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3,
-  PackageSearch,
-  Timer,
   ReceiptText,
-  ListChecks,
-  LayoutGrid,
+  Calendar,
 } from "lucide-react";
 
 const REPORTS = [
-  //   {
-  //     href: "/admin/reports",
-  //     title: "Overview",
-  //     desc: "All reports",
-  //     icon: LayoutGrid,
-  //   },
+  {
+    href: "/admin/reports",
+    title: "Calendar Report",
+    desc: "Daily breakdown by item",
+    icon: Calendar,
+  },
+  {
+    href: "/admin/reports/billing",
+    title: "Monthly Cleaned",
+    desc: "Vendor billing qty",
+    icon: ReceiptText,
+  },
   //   {
   //     href: "/admin/reports/stock",
   //     title: "Stock",
@@ -41,12 +44,6 @@ const REPORTS = [
   //     desc: "At laundry / pending",
   //     icon: Timer,
   //   },
-  {
-    href: "/admin/reports/billing",
-    title: "Monthly Cleaned",
-    desc: "Vendor billing qty",
-    icon: ReceiptText,
-  },
   //   {
   //     href: "/admin/reports/txns",
   //     title: "Txns Log",
@@ -67,8 +64,8 @@ export function ReportsNav() {
 
   return (
     <div className="flex items-center gap-2">
-      {/* Horizontal thumb tabs */}
-      <ScrollArea className="w-full">
+      {/* Horizontal thumb tabs - hidden on mobile, visible on md+ */}
+      <ScrollArea className="hidden md:block w-full">
         <div className="flex gap-2 pb-1">
           {REPORTS.map((r) => {
             const active = isActive(pathname, r.href);
@@ -95,18 +92,18 @@ export function ReportsNav() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* All reports sheet (one tap) */}
+      {/* All reports sheet (one tap) - always visible, full width on mobile */}
       <Sheet>
         <SheetTrigger asChild>
           <Button
             variant="outline"
-            className="h-10 shrink-0 gap-2 rounded-full"
+            className="h-10 shrink-0 gap-2 rounded-full md:w-auto w-full"
           >
             <BarChart3 className="h-4 w-4" />
             {active ? active.title : "Reports"}
           </Button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-2xl">
+        <SheetContent side="bottom" className="rounded-t-2xl p-2">
           <SheetHeader className="mb-3">
             <SheetTitle>All reports</SheetTitle>
           </SheetHeader>
