@@ -1,0 +1,30 @@
+/**
+ * Calendar Report — Print styles for Playwright PDF generation
+ * @page, print-color-adjust, semantic table headers, break control
+ */
+
+@page {
+  size: A4 landscape;
+  margin: 32px;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .calendar-report-print thead {
+    display: table-header-group;
+  }
+
+  .calendar-report-print tfoot {
+    display: table-footer-group;
+  }
+
+  .calendar-report-print .rail-header,
+  .calendar-report-print .rail-footer,
+  .calendar-report-print tr.report-row {
+    break-inside: avoid;
+  }
+}

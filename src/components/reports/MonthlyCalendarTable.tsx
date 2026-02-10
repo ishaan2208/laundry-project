@@ -55,6 +55,14 @@ export function MonthlyCalendarTable(props: {
 
     const isDispatch = props.transactionType === TxnType.DISPATCH_TO_LAUNDRY;
 
+    // For each date, true if at least one row has non-zero data (day was filled)
+    const dateHasData: Record<string, boolean> = {};
+    for (const dateKey of props.dateHeaders) {
+        dateHasData[dateKey] = props.rows.some(
+            (row) => (row.dates[dateKey] ?? 0) > 0
+        );
+    }
+
     const totalCheckoutRooms =
         isDispatch && props.checkoutRoomsByDate && props.dateHeaders.length
             ? props.dateHeaders.reduce(
@@ -123,6 +131,7 @@ export function MonthlyCalendarTable(props: {
                                         </td>
                                         {props.dateHeaders.map((dateKey) => {
                                             const qty = row.dates[dateKey] || 0;
+                                            const dayHasData = dateHasData[dateKey];
                                             const rooms =
                                                 isDispatch && props.checkoutRoomsByDate
                                                     ? props.checkoutRoomsByDate[dateKey]
@@ -130,11 +139,14 @@ export function MonthlyCalendarTable(props: {
                                             const ratio =
                                                 rooms && rooms > 0 ? qty / rooms : undefined;
 
+                                            // Only apply red/green when the day had data filled
                                             const aboveAvg =
+                                                dayHasData &&
                                                 rowAvgRatio != null &&
                                                 ratio != null &&
                                                 ratio > rowAvgRatio;
                                             const belowAvg =
+                                                dayHasData &&
                                                 rowAvgRatio != null &&
                                                 ratio != null &&
                                                 ratio < rowAvgRatio;
@@ -150,9 +162,9 @@ export function MonthlyCalendarTable(props: {
                                                     className={`p-2 text-center tabular-nums text-xs leading-tight ${cellBg}`}
                                                 >
                                                     <div className="font-semibold text-sm">
-                                                        {qty}
+                                                        {dayHasData ? qty : "—"}
                                                     </div>
-                                                    {isDispatch && ratio !== undefined && (
+                                                    {isDispatch && dayHasData && ratio !== undefined && (
                                                         <div className="mt-0.5 text-[10px] text-muted-foreground">
                                                             {ratio.toFixed(2)} / room
                                                         </div>
