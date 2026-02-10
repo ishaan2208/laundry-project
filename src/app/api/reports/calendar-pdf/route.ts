@@ -5,6 +5,9 @@ import { generateCalendarPDF } from "@/lib/generateCalendarPDF";
 import { CalendarReportHTML } from "@/components/reports/CalendarReportHTML";
 import type { CalendarReportPDFProps } from "@/components/reports/CalendarReportHTML";
 
+// Ensure this route runs in the Node.js runtime (required for Chromium)
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
     await requireUser();
 

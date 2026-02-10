@@ -74,7 +74,6 @@ export async function getMonthlyCalendarReport(input: {
           month: input.month,
         },
       });
-
       console.log("checkout-rooms API response", data);
       checkoutRoomsByDate = data.checkoutRoomsByDate ?? {};
     } catch (error) {

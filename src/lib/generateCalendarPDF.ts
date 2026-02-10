@@ -1,9 +1,10 @@
 /**
- * Playwright-based PDF generation for the Calendar Report.
- * Converts HTML to PDF using headless Chromium with print-perfect layout.
+ * Serverless/Vercel-compatible PDF generation for the Calendar Report.
+ * Uses @sparticuz/chromium + puppeteer-core to render HTML to PDF.
  */
 
-import { chromium } from "playwright";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -31,15 +32,17 @@ export async function generateCalendarPDF(html: string): Promise<Buffer> {
 </body>
 </html>`;
 
-    const browser = await chromium.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    const browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
     });
 
     try {
         const page = await browser.newPage();
         await page.setContent(fullHTML, {
-            waitUntil: "networkidle",
+            waitUntil: "networkidle0",
         });
 
         const pdfBuffer = await page.pdf({
