@@ -305,10 +305,9 @@ body{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ar
   tfoot{ display: table-footer-group; }
 }
 
-/* Outer stage */
+/* Outer stage — no min-height so PDF is only as tall as content (avoids extra blank page) */
 .stage{
   width: 297mm;
-  min-height: 210mm;
   background: var(--paper);
   font-size: 10px;
   line-height: 1.22;
@@ -464,13 +463,13 @@ table{
   table-layout: fixed;
 }
 
-/* Column header */
+/* Column header — compact height */
 thead th{
   background: var(--soft2);
   border-bottom: 2px solid var(--ink);
   color: var(--ink2);
-  height: 40px;
-  padding: 6px 6px;
+  height: 28px;
+  padding: 4px 4px;
   font-size: 8px;
   letter-spacing: 0.9px;
   font-weight: 950;
@@ -480,15 +479,15 @@ th, td{ border-right: 1px solid var(--line); }
 th:last-child, td:last-child{ border-right: none; }
 
 /* Dense months */
-.dense thead th{ font-size: 7.5px; height: 38px; }
+.dense thead th{ font-size: 7.5px; height: 26px; }
 
 /* Weekend wash (apply class on th/td) */
 .wknd{ background: var(--weekend) !important; }
 
-/* Body */
+/* Body — save height in rows */
 tbody td{
   border-bottom: 1px solid var(--line);
-  padding: 6px 6px;
+  padding: 3px 4px;
   vertical-align: middle;
 }
 
@@ -497,9 +496,9 @@ tbody tr:nth-child(even){ background: var(--zebra); }
 /* Avoid row splitting */
 tbody tr{ break-inside: avoid; page-break-inside: avoid; }
 
-/* Item cell */
+/* Item cell — compact */
 .item{
-  padding: 7px 10px !important;
+  padding: 4px 8px !important;
 }
 
 .itemName{
@@ -507,8 +506,8 @@ tbody tr{ break-inside: avoid; page-break-inside: avoid; }
   font-size: 9.6px;
   font-weight: 950;
   color: var(--ink2);
-  line-height: 1.12;
-  margin-bottom: 3px;
+  line-height: 1.1;
+  margin-bottom: 1px;
   word-break: break-word;
 }
 
@@ -534,13 +533,13 @@ tbody tr{ break-inside: avoid; page-break-inside: avoid; }
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-width: 18px;
-  padding: 3px 7px;
-  border-radius: 12px;
+  min-width: 16px;
+  padding: 2px 5px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--paper);
   font-weight: 950;
-  font-size: 8.4px;
+  font-size: 8px;
   color: var(--ink2);
 }
 
@@ -566,17 +565,17 @@ tbody tr{ break-inside: avoid; page-break-inside: avoid; }
 
 .tot{
   text-align: right;
-  padding: 6px 10px !important;
+  padding: 3px 8px !important;
 }
 
 .totBox{
   display:inline-flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
-  padding: 4px 8px;
+  gap: 0;
+  padding: 2px 6px;
   border: 1px solid var(--line2);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--paper);
   min-width: 74px;
 }
@@ -592,11 +591,11 @@ tbody tr{ break-inside: avoid; page-break-inside: avoid; }
   color: var(--faint);
 }
 
-/* Footer total row */
+/* Footer total row — compact */
 tfoot td{
   background: var(--soft);
   border-top: 2px solid var(--ink);
-  padding: 8px 10px;
+  padding: 4px 8px;
   font-weight: 950;
   color: var(--ink2);
   font-size: 9px;
@@ -661,12 +660,12 @@ tfoot .grand{
   flex-shrink: 0;
 }
 
-/* Make the date header stack super legible */
+/* Make the date header stack compact */
 .thDate{
   display:flex;
   flex-direction: column;
   align-items:center;
-  gap: 2px;
+  gap: 0;
   line-height: 1.02;
 }
 
@@ -741,6 +740,11 @@ export function CalendarReportHTML(props: CalendarReportPDFProps) {
 
     const overallRatio =
         showRatio && totalCheckoutRooms > 0 ? totalQty / totalCheckoutRooms : null;
+
+    const totalCostPerRoom =
+        totalCheckoutRooms > 0 && Number.isFinite(totalCost)
+            ? totalCost / totalCheckoutRooms
+            : null;
 
     const hasRows = rows && rows.length > 0;
     const dateColSpan = dateHeaders.length;
@@ -838,6 +842,14 @@ export function CalendarReportHTML(props: CalendarReportPDFProps) {
                                             {overallRatio != null ? overallRatio.toFixed(2) : "—"}
                                         </div>
                                     </div>
+
+                                    <div className="kv">
+                                        <Icon name="sum" size={14} color={UI.ink2} />
+                                        <div className="kvLabel">TOTAL COST PER ROOM</div>
+                                        <div className="kvValue monoSmall">
+                                            {totalCostPerRoom != null ? moneyINR(totalCostPerRoom) : "—"}
+                                        </div>
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -918,9 +930,9 @@ export function CalendarReportHTML(props: CalendarReportPDFProps) {
                                                     Unit:{" "}
                                                     <strong>{row.unitPrice != null ? moneyINR(row.unitPrice) : "—"}</strong>
                                                 </span>
-                                                <span style={{ marginLeft: "auto", color: UI.faint }}>
+                                                {/* <span style={{ marginLeft: "auto", color: UI.faint }}>
                                                     ID: {safeText(row.linenItemId, "—")}
-                                                </span>
+                                                </span> */}
                                             </span>
                                         </td>
 

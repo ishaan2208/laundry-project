@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { FileDown, Loader2 } from "lucide-react";
 import { useState } from "react";
+import toast from "react-hot-toast";
 import type { CalendarReportPDFProps } from "@/components/reports/CalendarReportHTML";
 import { TxnType } from "@prisma/client";
 
@@ -57,13 +58,19 @@ export function ExportPDFButton({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(props),
             });
-            if (!res.ok) throw new Error("Failed to generate PDF");
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                const msg = data?.message || res.statusText || "Failed to generate PDF";
+                throw new Error(msg);
+            }
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             window.open(url, "_blank");
             setTimeout(() => URL.revokeObjectURL(url), 1500);
         } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to generate PDF";
             console.error("Error generating PDF:", error);
+            toast.error(message);
         } finally {
             setIsGenerating(false);
         }

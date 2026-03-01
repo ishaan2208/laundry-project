@@ -51,8 +51,10 @@ export async function POST(req: Request) {
         });
     } catch (error) {
         console.error("Calendar PDF generation failed:", error);
+        const message =
+            error instanceof Error ? error.message : "Failed to generate PDF";
         return NextResponse.json(
-            { ok: false, message: "Failed to generate PDF" },
+            { ok: false, message },
             { status: 500 }
         );
     }
