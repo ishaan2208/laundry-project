@@ -1,7 +1,7 @@
 // src/app/(admin)/settings/layout.tsx
 import * as React from "react";
 import { requireUser, requireRole } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 import SettingsNav from "./_components/SettingsNav";
 import { Settings2 } from "lucide-react";
 import { Card } from "@/components/ui/card";

@@ -17,6 +17,8 @@ import {
   BarChart3,
   ReceiptText,
   Calendar,
+  History,
+  ListChecks,
 } from "lucide-react";
 
 const REPORTS = [
@@ -31,6 +33,18 @@ const REPORTS = [
     title: "Monthly Cleaned",
     desc: "Vendor billing qty",
     icon: ReceiptText,
+  },
+  {
+    href: "/admin/reports/stock-audit-history",
+    title: "Audit vs audit",
+    desc: "Saved audits · qty changes & CSV",
+    icon: History,
+  },
+  {
+    href: "/admin/physical-stock-counts",
+    title: "Physical counts",
+    desc: "Staff counts · approve to ledger",
+    icon: ListChecks,
   },
   //   {
   //     href: "/admin/reports/stock",

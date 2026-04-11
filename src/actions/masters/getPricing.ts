@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 
 export async function getPricing() {
   const user = await requireUser();

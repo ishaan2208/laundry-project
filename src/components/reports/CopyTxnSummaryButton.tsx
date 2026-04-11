@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Share2, ClipboardCopy } from "lucide-react";
-import { TxnType, LinenCondition } from "@prisma/client";
+import { TxnType, LinenCondition } from "@/generated/prisma";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import T from "react-hot-toast";

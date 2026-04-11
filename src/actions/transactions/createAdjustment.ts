@@ -1,6 +1,6 @@
 "use server";
 
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType, UserRole } from "@/generated/prisma";
 import { requireUser, requireRole, requirePropertyAccess } from "@/lib/auth";
 import { postTransaction } from "@/lib/ledger";
 import { resolveLocation } from "@/lib/workflowLocations";

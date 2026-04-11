@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 export async function getTransactionById(id: string) {
   console.log("id", id);

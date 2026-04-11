@@ -7,7 +7,7 @@ import {
   LocationKind,
   TxnType,
   UserRole,
-} from "@prisma/client";
+} from "@/generated/prisma";
 
 function monthRangeUTC(month: string) {
   // month: "2025-12"

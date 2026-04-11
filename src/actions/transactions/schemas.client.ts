@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Mirror of server schemas but safe to import from client (no @prisma/client)
+// Mirror of server schemas but safe to import from client (no @/generated/prisma)
 
 const LinenConditionEnum = z.enum(["CLEAN", "SOILED", "REWASH", "DAMAGED"]);
 const LocationKindEnum = z.enum([

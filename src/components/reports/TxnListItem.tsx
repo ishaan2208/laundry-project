@@ -14,7 +14,7 @@ import {
   Upload,
   ScrollText,
 } from "lucide-react";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 function typeLabel(t: string) {
   return t.replaceAll("_", " ");

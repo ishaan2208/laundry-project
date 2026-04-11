@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { MonthlyCalendarFilters } from "@/components/reports/MonthlyCalendarFilters";
 import { MonthlyCalendarTable } from "@/components/reports/MonthlyCalendarTable";
 import { ExportPDFButton } from "@/components/reports/ExportPDFButton";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 type LaundryTransactionType =
   | typeof TxnType.DISPATCH_TO_LAUNDRY

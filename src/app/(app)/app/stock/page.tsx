@@ -2,7 +2,7 @@
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LocationKind, LinenCondition, UserRole } from "@prisma/client";
+import { LocationKind, LinenCondition, UserRole } from "@/generated/prisma";
 import { getBalances } from "@/actions/reports/getBalances";
 import { BalanceTable } from "@/components/reports/BalanceTable";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Boxes,
-  SlidersHorizontal,
   TriangleAlert,
   Building2,
   PackageSearch,
@@ -23,6 +22,8 @@ import {
   Shirt,
   Droplets,
   RotateCcw,
+  ClipboardCheck,
+  ListChecks,
 } from "lucide-react";
 
 const BASE_PATH = "/app/stock";
@@ -223,6 +224,34 @@ export default async function StockPage({
 
               {/* Actions */}
               <div className="flex items-center gap-2">
+                {propertyId ? (
+                  <>
+                    <Button
+                      asChild
+                      variant="secondary"
+                      className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+                    >
+                      <Link
+                        href={`/app/stock/audit?propertyId=${encodeURIComponent(propertyId)}`}
+                      >
+                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                        Weekly audit
+                      </Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="secondary"
+                      className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+                    >
+                      <Link
+                        href={`/app/stock/physical-count?propertyId=${encodeURIComponent(propertyId)}`}
+                      >
+                        <ListChecks className="mr-2 h-4 w-4" />
+                        Physical count
+                      </Link>
+                    </Button>
+                  </>
+                ) : null}
                 <ReportFiltersSheet
                   title="Stock Filters"
                   buttonLabel="Filters"

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth";
 import { z } from "zod";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 
 const Schema = z.object({
   userId: z.string().min(1),

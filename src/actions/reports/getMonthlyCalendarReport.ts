@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole, requirePropertyAccess } from "@/lib/auth";
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType, UserRole } from "@/generated/prisma";
 import { getPricingMapForVendor } from "@/actions/masters/getPricingMap";
 import { apiRequest } from "@/lib/apiClient";
 

@@ -10,8 +10,11 @@ import {
   Trash2,
   Settings,
   BarChart3,
+  ClipboardCheck,
+  ListChecks,
   Zap,
   ChevronRight,
+  ScrollText,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +126,20 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
 
           {isAdmin ? (
             <>
+              {propertyId ? (
+                <m.div
+                  variants={fadeUp}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
+                  className="col-span-2"
+                >
+                  <ActionCard
+                    href={`/app/vendor-ledger?propertyId=${encodeURIComponent(propertyId)}`}
+                    title="Vendor item ledger"
+                    subtitle="Dispatch & receive history per item"
+                    icon={ScrollText}
+                  />
+                </m.div>
+              ) : null}
               <m.div
                 variants={fadeUp}
                 transition={{ duration: reduceMotion ? 0 : 0.16 }}
@@ -149,6 +166,20 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
             </>
           ) : (
             <>
+              {propertyId ? (
+                <m.div
+                  variants={fadeUp}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
+                  className="col-span-2"
+                >
+                  <ActionCard
+                    href={`/app/vendor-ledger?propertyId=${encodeURIComponent(propertyId)}`}
+                    title="Vendor item ledger"
+                    subtitle="Dispatch & receive history per item"
+                    icon={ScrollText}
+                  />
+                </m.div>
+              ) : null}
               <m.div
                 variants={fadeUp}
                 transition={{ duration: reduceMotion ? 0 : 0.16 }}
@@ -159,6 +190,30 @@ export function QuickActions({ propertyId, isAdmin }: Props) {
                   subtitle="View balances"
                   icon={Zap}
                   badge="Live"
+                />
+              </m.div>
+
+              <m.div
+                variants={fadeUp}
+                transition={{ duration: reduceMotion ? 0 : 0.16 }}
+              >
+                <ActionCard
+                  href={`/app/stock/audit${qp}`}
+                  title="Weekly audit"
+                  subtitle="All items · totals"
+                  icon={ClipboardCheck}
+                />
+              </m.div>
+
+              <m.div
+                variants={fadeUp}
+                transition={{ duration: reduceMotion ? 0 : 0.16 }}
+              >
+                <ActionCard
+                  href={`/app/stock/physical-count${qp}`}
+                  title="Physical count"
+                  subtitle="Submit for approval"
+                  icon={ListChecks}
                 />
               </m.div>
 

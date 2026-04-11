@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requirePropertyAccess, requireUser } from "@/lib/auth";
-import { LocationKind } from "@prisma/client";
+import { LocationKind } from "@/generated/prisma";
 
 export type VendorPendingTopRow = {
   vendorId: string;

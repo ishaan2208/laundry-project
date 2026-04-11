@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireUser, isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { PropertyLite } from "@/components/dashboard/PropertySelector";

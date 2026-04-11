@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { isAdmin, requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType, UserRole } from "@/generated/prisma";
 import { getTransactions } from "@/actions/reports/getTransactions";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
 import { Card } from "@/components/ui/card";

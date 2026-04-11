@@ -6,6 +6,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  /// Package-local client so monorepo hoisting never loads another workspace’s `.prisma/client`.
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -45,6 +47,12 @@ enum TxnType {
   VOID_REVERSAL
 }
 
+enum PhysicalStockCountStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 model User {
   id    String   @id @default(cuid())
   email String   @unique
@@ -63,6 +71,9 @@ model User {
 
   createdTransactions Transaction[] @relation("CreatedBy")
   voidedTransactions  Transaction[] @relation("VoidedBy")
+  stockAuditSnapshots   StockAuditSnapshot[]
+  physicalCountsSubmitted PhysicalStockCount[] @relation("PhysicalCountSubmitted")
+  physicalCountsReviewed  PhysicalStockCount[] @relation("PhysicalCountReviewed")
 }
 
 model Property {
@@ -77,6 +88,8 @@ model Property {
   locations    Location[]
   transactions Transaction[]
   userLinks    UserProperty[]
+  stockAuditSnapshots StockAuditSnapshot[]
+  physicalStockCounts PhysicalStockCount[]
 
   @@index([isActive])
 }
@@ -122,6 +135,8 @@ model LinenItem {
 
   entries TransactionEntry[]
   prices  Pricing[]
+  stockAuditSnapshotLines StockAuditSnapshotLine[]
+  physicalStockCountLines PhysicalStockCountLine[]
 
   @@index([isActive])
 }
@@ -193,6 +208,7 @@ model Transaction {
   reversals  Transaction[] @relation("TxnReversal")
 
   entries TransactionEntry[]
+  physicalCountApproval PhysicalStockCount? @relation("PhysicalCountApprovalTxn")
 
   @@unique([createdById, idempotencyKey])
   @@unique([reversalOfId])
@@ -249,5 +265,82 @@ model Pricing {
 
   @@unique([vendorId, linenItemId])
   @@index([vendorId])
+  @@index([linenItemId])
+}
+
+/// Point-in-time weekly stock audit (Monday start, Asia/Kolkata).
+model StockAuditSnapshot {
+  id               String   @id @default(cuid())
+  propertyId       String
+  /// IST week-start Monday as calendar date
+  weekStart        DateTime @db.Date
+  capturedAt       DateTime @default(now())
+  /// Null when created by scheduled job
+  createdById      String?
+  includeVendor    Boolean
+  includeDiscarded Boolean
+
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines     StockAuditSnapshotLine[]
+
+  @@unique([propertyId, weekStart, includeVendor, includeDiscarded])
+  @@index([propertyId, weekStart])
+  @@index([weekStart])
+}
+
+model StockAuditSnapshotLine {
+  id          String @id @default(cuid())
+  snapshotId  String
+  linenItemId String
+  totalQty    Int
+  /// { byCondition, byLocationKind } matching StockAuditRow slices
+  breakdown   Json?
+
+  snapshot  StockAuditSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  linenItem LinenItem          @relation(fields: [linenItemId], references: [id], onDelete: Restrict)
+
+  @@index([snapshotId])
+  @@index([linenItemId])
+}
+
+/// Staff-submitted physical totals; admin approval posts ADJUSTMENT so ledger matches counted system-wide totals.
+model PhysicalStockCount {
+  id                    String                   @id @default(cuid())
+  propertyId            String
+  includeVendor         Boolean
+  includeDiscarded      Boolean
+  status                PhysicalStockCountStatus @default(PENDING_REVIEW)
+  staffNote             String?
+  submittedById         String
+  submittedAt           DateTime                 @default(now())
+  reviewedById          String?
+  reviewedAt            DateTime?
+  reviewNote            String?
+  approvalTransactionId String?                  @unique
+
+  property              Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submitter             User         @relation("PhysicalCountSubmitted", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewer              User?        @relation("PhysicalCountReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  approvalTransaction   Transaction? @relation("PhysicalCountApprovalTxn", fields: [approvalTransactionId], references: [id], onDelete: SetNull)
+  lines                   PhysicalStockCountLine[]
+
+  @@index([propertyId, status])
+  @@index([status, submittedAt])
+}
+
+model PhysicalStockCountLine {
+  id              String @id @default(cuid())
+  countId         String
+  linenItemId     String
+  countedQty      Int
+  /// Admin-edited quantity before approve; null means use countedQty.
+  approvedQty     Int?
+  bookQtyAtSubmit Int
+
+  count     PhysicalStockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  linenItem LinenItem          @relation(fields: [linenItemId], references: [id], onDelete: Restrict)
+
+  @@index([countId])
   @@index([linenItemId])
 }

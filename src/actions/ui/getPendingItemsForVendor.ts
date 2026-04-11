@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { LinenCondition, LocationKind } from "@prisma/client";
+import { LinenCondition, LocationKind } from "@/generated/prisma";
 
 export type PendingItemRow = {
   linenItemId: string;

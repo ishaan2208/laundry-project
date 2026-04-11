@@ -3,7 +3,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 
 export async function getUsersAdmin() {
   const me = await requireUser();

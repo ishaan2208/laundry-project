@@ -4,7 +4,7 @@ import "server-only";
 import { cache } from "react";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 
 export type AppUser = {
   id: string;

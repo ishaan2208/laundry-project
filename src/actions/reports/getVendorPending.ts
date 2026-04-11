@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { LinenCondition, LocationKind } from "@prisma/client";
+import { LinenCondition, LocationKind } from "@/generated/prisma";
 import { VendorPendingVendorRow } from "../reports/types";
 
 export async function getVendorPending(input: {

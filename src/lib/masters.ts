@@ -1,6 +1,6 @@
 // src/lib/masters.ts
 import { prisma } from "@/lib/db";
-import { LocationKind } from "@prisma/client";
+import { LocationKind } from "@/generated/prisma";
 
 export const DEFAULT_LOCATION_SPECS: Array<{
   kind: Exclude<LocationKind, "VENDOR">;

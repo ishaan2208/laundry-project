@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { LocationKind, LinenCondition } from "@prisma/client";
+import { LocationKind, LinenCondition } from "@/generated/prisma";
 
 export type VendorPendingCard = {
   vendorId: string;

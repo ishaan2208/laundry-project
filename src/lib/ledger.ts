@@ -1,7 +1,7 @@
 // src/lib/ledger.ts
 import "server-only";
 
-import { Prisma, LocationKind, TxnType } from "@prisma/client";
+import { Prisma, LocationKind, TxnType } from "@/generated/prisma";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 

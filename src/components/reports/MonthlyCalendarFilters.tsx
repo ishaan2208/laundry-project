@@ -19,7 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { CalendarRange, SlidersHorizontal } from "lucide-react";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 import { parse } from "date-fns";
 
 type Opt = { id: string; name: string };

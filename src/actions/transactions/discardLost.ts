@@ -6,7 +6,7 @@ import {
   LocationKind,
   TxnType,
   UserRole,
-} from "@prisma/client";
+} from "@/generated/prisma";
 import { requireUser, requireRole, requirePropertyAccess } from "@/lib/auth";
 import { postTransaction } from "@/lib/ledger";
 import { getLocationByKind, resolveLocation } from "@/lib/workflowLocations";

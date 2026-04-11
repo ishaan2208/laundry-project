@@ -2,7 +2,7 @@
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LinenCondition, UserRole } from "@prisma/client";
+import { LinenCondition, UserRole } from "@/generated/prisma";
 import { getVendorPending } from "@/actions/reports/getVendorPending";
 import { VendorPendingCard } from "@/components/reports/VendorPendingCard";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";

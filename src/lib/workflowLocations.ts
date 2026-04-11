@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Location, LocationKind } from "@prisma/client";
+import type { Location, LocationKind } from "@/generated/prisma";
 
 const DEFAULT_LOCATION_NAMES: Record<
   Exclude<LocationKind, "VENDOR">,

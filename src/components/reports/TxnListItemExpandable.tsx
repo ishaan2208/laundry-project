@@ -48,7 +48,7 @@ type TxnListRow = {
   voidedAt?: string | Date | null;
 };
 
-const minSelectableDate = new Date(2026, 0, 1); // ✅ Jan 1, 2026
+const minSelectableDate = new Date(2018, 0, 1);
 
 function fmt(dt: string | Date) {
   const d = typeof dt === "string" ? new Date(dt) : dt;
@@ -64,6 +64,12 @@ function isMovementType(type: string) {
     type === "DISPATCH_TO_LAUNDRY" ||
     type === "RECEIVE_FROM_LAUNDRY" ||
     type === "RESEND_REWASH"
+  );
+}
+
+function isDispatchOrReceive(type: string) {
+  return (
+    type === "DISPATCH_TO_LAUNDRY" || type === "RECEIVE_FROM_LAUNDRY"
   );
 }
 
@@ -243,27 +249,30 @@ export function TxnListItemExpandable({
       T.error("Please enter a short reason (min 3 chars).");
       return;
     }
-    if (!occurredAtDraft) {
-      T.error("Please select a date/time.");
-      return;
-    }
-    if (occurredAtDraft < minSelectableDate) {
-      T.error("Dates before Jan 2026 are not allowed.");
-      return;
+    if (isDispatchOrReceive(detail.type)) {
+      if (!occurredAtDraft) {
+        T.error("Please select a date/time.");
+        return;
+      }
+      if (occurredAtDraft < minSelectableDate) {
+        T.error("That date is too far in the past.");
+        return;
+      }
     }
 
     const updates = buildUpdatesForSave(detail);
+
+    const body: Record<string, unknown> = { reason, updates };
+    if (isDispatchOrReceive(detail.type) && occurredAtDraft) {
+      body.occurredAt = occurredAtDraft.toISOString();
+    }
 
     setSaving(true);
     try {
       const res = await fetch(`/api/txns/${row.id}/edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reason,
-          occurredAt: occurredAtDraft.toISOString(),
-          updates,
-        }),
+        body: JSON.stringify(body),
       });
 
       const json = await res.json();
@@ -281,10 +290,6 @@ export function TxnListItemExpandable({
     }
   }
 
-  const isVoided = Boolean(row.voidedAt);
-  const statusTone = isVoided
-    ? "bg-red-500/10 text-red-700 dark:text-red-200 dark:bg-red-500/15 border-red-500/20"
-    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200 dark:bg-emerald-500/15 border-emerald-500/20";
   const cols = admin ? "grid-cols-3" : "grid-cols-2";
 
   return (
@@ -476,30 +481,32 @@ export function TxnListItemExpandable({
                 <SheetDescription className="text-xs">
                   Edit destination quantities. For movement transactions, the
                   source side is auto-balanced to keep the ledger consistent.
+                  For <strong>dispatch</strong> and <strong>receive</strong>, you
+                  can also set the occurred date (when the movement happened).
                 </SheetDescription>
               </SheetHeader>
 
               <Separator className="my-4 opacity-60" />
 
               <div className="space-y-4 pb-24">
-                {/* OccurredAt */}
-                <div className="space-y-2">
-                  {/* <div className="text-xs font-semibold text-muted-foreground">
-                    Occurred At (no dates before Jan 2026)
-                  </div> */}
-                  {/* 
-                  <DatePicker
-                    selected={occurredAtDraft}
-                    onChange={(d) => setOccurredAtDraft(d as Date)}
-                    showTimeSelect
-                    timeIntervals={5}
-                    dateFormat="dd MMM yyyy, hh:mm aa"
-                    minDate={minSelectableDate}
-                    customInput={
-                      <Input className="h-12 rounded-2xl" readOnly />
-                    }
-                  /> */}
-                </div>
+                {isDispatchOrReceive(detail.type) ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground">
+                      Occurred date &amp; time
+                    </div>
+                    <DatePicker
+                      selected={occurredAtDraft}
+                      onChange={(d) => setOccurredAtDraft(d as Date)}
+                      showTimeSelect
+                      timeIntervals={15}
+                      dateFormat="dd MMM yyyy, hh:mm aa"
+                      minDate={minSelectableDate}
+                      customInput={
+                        <Input className="h-12 rounded-2xl" readOnly />
+                      }
+                    />
+                  </div>
+                ) : null}
 
                 {/* Reason */}
                 <div className="space-y-2">

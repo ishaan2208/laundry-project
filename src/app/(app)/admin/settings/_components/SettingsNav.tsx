@@ -13,6 +13,7 @@ import {
   MapPin,
   ArrowRight,
   IndianRupee,
+  ClipboardCheck,
 } from "lucide-react";
 
 const tabs = [
@@ -22,6 +23,11 @@ const tabs = [
   { href: "/admin/settings/items", label: "Items", icon: Package },
   { href: "/admin/settings/locations", label: "Locations", icon: MapPin },
   { href: "/admin/settings/pricing", label: "Pricing", icon: IndianRupee },
+  {
+    href: "/admin/physical-stock-counts",
+    label: "Counts",
+    icon: ClipboardCheck,
+  },
 ];
 
 function isActivePath(pathname: string, href: string) {

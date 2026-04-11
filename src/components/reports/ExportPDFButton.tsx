@@ -5,7 +5,7 @@ import { FileDown, Loader2 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import type { CalendarReportPDFProps } from "@/components/reports/CalendarReportHTML";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 type LaundryTransactionType =
     | typeof TxnType.DISPATCH_TO_LAUNDRY

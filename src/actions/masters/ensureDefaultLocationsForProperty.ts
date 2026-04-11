@@ -1,7 +1,7 @@
 // src/actions/masters/ensureDefaultLocationsForProperty.ts
 "use server";
 import { requireUser, requireRole } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 import { z } from "zod";
 import { ensureDefaultLocationsForProperty } from "@/lib/masters";
 import { revalidatePath } from "next/cache";

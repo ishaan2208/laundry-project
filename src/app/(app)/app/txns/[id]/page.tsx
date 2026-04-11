@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { requireUser, isAdmin } from "@/lib/auth";
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 import { getTransactionById } from "@/actions/reports/getTransactionById";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { VoidTxnButton } from "./void-button";
+import { ChangeTxnOccurredDateForm } from "./ChangeTxnOccurredDateForm";
 import { CopyTxnSummaryButton } from "@/components/reports/CopyTxnSummaryButton";
 import {
   ArrowLeft,
@@ -178,6 +179,32 @@ export default async function TxnDetailPage({
             </div>
           </div>
         </Card>
+
+        {isAdmin(user) && shareable && !t.voidedAt ? (
+          <ChangeTxnOccurredDateForm
+            transactionId={t.id}
+            occurredAtIso={t.occurredAt.toISOString()}
+            entries={t.entries.map((e) => ({
+              id: e.id,
+              qtyAbs: Math.abs(e.qtyDelta),
+            }))}
+          />
+        ) : null}
+
+        {isAdmin(user) && shareable && !t.voidedAt ? (
+          <ChangeTxnOccurredDateForm
+            transactionId={t.id}
+            occurredAt={
+              typeof t.occurredAt === "string"
+                ? t.occurredAt
+                : t.occurredAt.toISOString()
+            }
+            entries={t.entries.map((e) => ({
+              id: e.id,
+              qtyAbs: Math.abs(e.qtyDelta),
+            }))}
+          />
+        ) : null}
 
         {/* Note */}
         {t.note ? (

@@ -4,13 +4,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Truck, PackageCheck, ClipboardList, Layers } from "lucide-react";
+import {
+  Home,
+  Truck,
+  PackageCheck,
+  ClipboardList,
+  Layers,
+  ScrollText,
+} from "lucide-react";
 
 const items = [
   { href: "/app/dispatch", label: "Dispatch", icon: Truck },
   { href: "/app/receive", label: "Receive", icon: PackageCheck },
   { href: "/app", label: "Home", icon: Home },
   { href: "/app/stock", label: "Stock", icon: Layers },
+  { href: "/app/vendor-ledger", label: "Ledger", icon: ScrollText },
   { href: "/app/txns", label: "Log", icon: ClipboardList },
 ];
 
@@ -30,17 +38,20 @@ export default function BottomNav() {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div
-          className="mx-auto max-w-md grid grid-cols-5"
+          className="mx-auto max-w-lg grid grid-cols-6 px-1"
           style={{ height: 64 }}
         >
           {items.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? path === "/" : path.startsWith(href);
+            const active =
+              href === "/app"
+                ? path === "/app" || path === "/app/"
+                : path.startsWith(href);
             return (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  "py-2 flex flex-col items-center justify-center gap-1 text-xs",
+                  "py-2 flex flex-col items-center justify-center gap-0.5 text-[10px] leading-tight sm:text-xs",
                   active ? "text-foreground" : "text-muted-foreground"
                 )}
               >

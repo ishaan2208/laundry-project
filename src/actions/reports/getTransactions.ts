@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType, UserRole } from "@/generated/prisma";
 import { TxnListRow } from "../reports/types";
 
 function parseDateOrNull(v?: string | null) {

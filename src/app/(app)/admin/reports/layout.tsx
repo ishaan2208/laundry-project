@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { requireUser, requireRole } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 import { ReportsNav } from "@/components/reports/ReportsNav";
 import { Separator } from "@/components/ui/separator";
 

@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { parse, format } from "date-fns";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 type LaundryTransactionType =
     | typeof TxnType.DISPATCH_TO_LAUNDRY

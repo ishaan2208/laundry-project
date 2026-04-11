@@ -5,5 +5,5 @@ export { resendRewash } from "./resendRewash";
 export { discardLost } from "./discardLost";
 export { createAdjustment } from "./createAdjustment";
 
-// NOTE: do NOT re-export schemas from here; server schemas import @prisma/client
+// NOTE: do NOT re-export schemas from here; server schemas import @/generated/prisma
 // which leaks into client bundles when this barrel is imported from client code.

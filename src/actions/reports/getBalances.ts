@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { LinenCondition, LocationKind } from "@prisma/client";
+import { LinenCondition, LocationKind } from "@/generated/prisma";
 import { BalanceRow } from "../reports/types";
 
 export async function getBalances(input: {
@@ -17,7 +17,7 @@ export async function getBalances(input: {
   const grouped = await prisma.transactionEntry.groupBy({
     by: ["locationId", "linenItemId", "condition"],
     where: {
-      //   transaction: { voidedAt: null },
+      transaction: { voidedAt: null },
       location: {
         propertyId: input.propertyId,
         ...(input.locationKind ? { kind: input.locationKind } : {}),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LinenCondition, LocationKind } from "@prisma/client";
+import { LinenCondition, LocationKind } from "@/generated/prisma";
 
 // 1) Procurement
 export const ProcurementLineSchema = z.object({

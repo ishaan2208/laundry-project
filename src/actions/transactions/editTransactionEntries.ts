@@ -3,13 +3,15 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { TxnType, UserRole } from "@prisma/client";
+import { TxnType, UserRole } from "@/generated/prisma";
 import { postTransaction, voidTransaction } from "@/lib/ledger";
 import { revalidatePath } from "next/cache";
 
 const EditTxnInput = z.object({
   transactionId: z.string().cuid(),
   reason: z.string().trim().min(3).max(200),
+  /** ISO datetime; only honored for DISPATCH_TO_LAUNDRY and RECEIVE_FROM_LAUNDRY. */
+  occurredAt: z.string().datetime({ offset: true }).optional(),
   updates: z
     .array(
       z.object({
@@ -56,7 +58,10 @@ export async function editTransactionEntriesAction(
     return { ok: false, message: "Only ADMIN can edit transactions." };
   }
 
-  const { transactionId, reason, updates } = parsed.data;
+  const { transactionId, reason, updates, occurredAt: occurredAtStr } =
+    parsed.data;
+  const occurredAtInput =
+    occurredAtStr !== undefined ? new Date(occurredAtStr) : undefined;
 
   const txn = await prisma.transaction.findUnique({
     where: { id: transactionId },
@@ -140,6 +145,37 @@ export async function editTransactionEntriesAction(
     }
   }
 
+  let occurredAtForPost: Date = txn.occurredAt;
+  if (occurredAtInput !== undefined) {
+    if (
+      txn.type !== TxnType.DISPATCH_TO_LAUNDRY &&
+      txn.type !== TxnType.RECEIVE_FROM_LAUNDRY
+    ) {
+      return {
+        ok: false,
+        message:
+          "Changing the occurred date is only allowed for dispatch and receive transactions.",
+      };
+    }
+    const t = occurredAtInput.getTime();
+    if (t > Date.now() + 86400_000) {
+      return {
+        ok: false,
+        message: "Occurred date cannot be more than 24 hours in the future.",
+      };
+    }
+    if (t < new Date("2000-01-01T00:00:00.000Z").getTime()) {
+      return {
+        ok: false,
+        message: "Occurred date is too far in the past.",
+      };
+    }
+    occurredAtForPost = occurredAtInput;
+  }
+
+  const dateChanged =
+    occurredAtForPost.getTime() !== new Date(txn.occurredAt).getTime();
+
   // 1) VOID original (creates reversal txn)
   const voidRes = await voidTransaction({
     transactionId: txn.id,
@@ -155,15 +191,20 @@ export async function editTransactionEntriesAction(
   }
 
   // 2) POST replacement txn (new id)
+  const noteParts = [
+    txn.note,
+    `EDITED_FROM:${txn.id}`,
+    `EDIT_REASON:${reason}`,
+    dateChanged ? `PREV_OCCURRED_AT:${txn.occurredAt.toISOString()}` : null,
+  ].filter(Boolean) as string[];
+
   const posted = await postTransaction({
     type: txn.type,
     propertyId: txn.propertyId,
     vendorId: txn.vendorId ?? undefined,
     reference: txn.reference ?? undefined,
-    note: [txn.note, `EDITED_FROM:${txn.id}`, `EDIT_REASON:${reason}`]
-      .filter(Boolean)
-      .join("\n"),
-    occurredAt: txn.occurredAt,
+    note: noteParts.join("\n"),
+    occurredAt: occurredAtForPost,
     createdById: user.id,
     entries: newEntries,
   });
@@ -172,6 +213,8 @@ export async function editTransactionEntriesAction(
 
   // Revalidate main surfaces
   revalidatePath("/app/txns");
+  revalidatePath(`/app/txns/${txn.id}`);
+  revalidatePath(`/app/txns/${newTransactionId}`);
   revalidatePath("/app/stock");
   revalidatePath("/app/vendors");
 

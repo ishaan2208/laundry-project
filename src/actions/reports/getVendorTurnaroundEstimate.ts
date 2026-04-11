@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireUser, requirePropertyAccess } from "@/lib/auth";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 import { VendorTurnaroundRow } from "../reports/types";
 
 export async function getVendorTurnaroundEstimate(input: {

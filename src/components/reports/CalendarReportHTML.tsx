@@ -18,7 +18,7 @@
 
 import React from "react";
 import { format, parse, isValid, isWeekend } from "date-fns";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 // ---------------- Types ----------------
 export type CalendarReportPDFProps = {

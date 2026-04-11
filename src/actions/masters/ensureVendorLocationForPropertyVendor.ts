@@ -1,7 +1,7 @@
 // src/actions/masters/ensureVendorLocationForPropertyVendor.ts
 "use server";
 import { requireUser, requireRole } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/generated/prisma";
 import { z } from "zod";
 import { ensureVendorLocationForPropertyVendor } from "@/lib/masters";
 import { prisma } from "@/lib/db";

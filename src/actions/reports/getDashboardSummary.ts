@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requirePropertyAccess, requireUser } from "@/lib/auth";
-import { TxnType } from "@prisma/client";
+import { TxnType } from "@/generated/prisma";
 
 export type DashboardSummary = {
   propertyId: string;
