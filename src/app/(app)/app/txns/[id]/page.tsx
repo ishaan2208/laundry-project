@@ -183,17 +183,6 @@ export default async function TxnDetailPage({
         {isAdmin(user) && shareable && !t.voidedAt ? (
           <ChangeTxnOccurredDateForm
             transactionId={t.id}
-            occurredAtIso={t.occurredAt.toISOString()}
-            entries={t.entries.map((e) => ({
-              id: e.id,
-              qtyAbs: Math.abs(e.qtyDelta),
-            }))}
-          />
-        ) : null}
-
-        {isAdmin(user) && shareable && !t.voidedAt ? (
-          <ChangeTxnOccurredDateForm
-            transactionId={t.id}
             occurredAt={
               typeof t.occurredAt === "string"
                 ? t.occurredAt

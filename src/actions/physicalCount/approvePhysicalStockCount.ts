@@ -61,6 +61,7 @@ export async function approvePhysicalStockCount(
         linenItemId: line.linenItemId,
         condition: LinenCondition.CLEAN,
         qtyDelta: delta,
+        unitCost: undefined,
         meta: {
           physicalCountId: count.id,
           flow: "physical_count_approve",
