@@ -66,7 +66,10 @@ export const PostTransactionInputSchema = z.object({
   entries: z.array(TxnEntryInputSchema).min(1, "At least 1 entry required"),
 });
 
-export type PostTransactionInput = z.infer<typeof PostTransactionInputSchema>;
+export type PostTransactionInput = z.input<typeof PostTransactionInputSchema>;
+export type ParsedPostTransactionInput = z.infer<
+  typeof PostTransactionInputSchema
+>;
 
 export const VoidTransactionInputSchema = z.object({
   transactionId: cuidSchema,
