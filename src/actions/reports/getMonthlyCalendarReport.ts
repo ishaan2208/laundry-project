@@ -5,6 +5,7 @@ import { requireUser, requireRole, requirePropertyAccess } from "@/lib/auth";
 import { TxnType, UserRole } from "@/generated/prisma";
 import { getPricingMapForVendor } from "@/actions/masters/getPricingMap";
 import { apiRequest } from "@/lib/apiClient";
+import { resolvePmsPropertyId } from "@/lib/pmsPropertyLink";
 
 type LaundryTransactionType =
   | typeof TxnType.DISPATCH_TO_LAUNDRY
@@ -53,22 +54,15 @@ export async function getMonthlyCalendarReport(input: {
   let checkoutRoomsByDate: Record<string, number> = {};
 
   if (input.transactionType === TxnType.DISPATCH_TO_LAUNDRY) {
-    const property = await prisma.property.findUnique({
-      where: { id: input.propertyId },
-      select: { pmsPropertyId: true },
-    });
-    const externalPropertyId =
-      property?.pmsPropertyId != null
-        ? String(property.pmsPropertyId)
-        : null;
+    const pmsPropertyId = await resolvePmsPropertyId(input.propertyId);
 
-    if (externalPropertyId) {
+    if (pmsPropertyId != null) {
       try {
         const data = await apiRequest<CheckoutRoomsResponse>({
           method: "GET",
           url: "/analytics/checkout-rooms",
           params: {
-            propertyId: externalPropertyId,
+            propertyId: String(pmsPropertyId),
             month: input.month,
           },
         });
@@ -77,6 +71,10 @@ export async function getMonthlyCalendarReport(input: {
         console.error("Error fetching checkout rooms", error);
         checkoutRoomsByDate = {};
       }
+    } else {
+      console.warn(
+        `[getMonthlyCalendarReport] No PMS property mapping for laundry property ${input.propertyId}`
+      );
     }
   }
 
