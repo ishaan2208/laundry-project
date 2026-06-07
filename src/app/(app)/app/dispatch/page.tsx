@@ -37,6 +37,20 @@ import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 import { dispatchToLaundry } from "@/actions/transactions";
 import { DispatchToLaundrySchema } from "@/actions/transactions/schemas.client";
 
+function todayDateKeyIST() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
+    new Date()
+  );
+}
+
+/** End-of-day IST for a YYYY-MM-DD key (for backdated entries). */
+function dateKeyToOccurredAt(dateKey: string): Date {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const endUtc = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - istOffsetMs);
+  return new Date(endUtc.getTime() - 1);
+}
+
 const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:dispatch";
 const LS_DISPATCH_ITEM_FREQ = "laundry:itemFreq:dispatch";
@@ -68,6 +82,7 @@ export default function DispatchPage() {
   const [vendorId, setVendorId] = React.useState<string | null>(null);
   const [lines, setLines] = React.useState<Line[]>([]);
   const [done, setDone] = React.useState(false);
+  const [occurredDate, setOccurredDate] = React.useState(todayDateKeyIST);
 
   // Bootstrap defaults (localStorage -> first available)
   React.useEffect(() => {
@@ -181,6 +196,9 @@ export default function DispatchPage() {
       vendorId,
       idempotencyKey: newIdempotencyKey(),
       lines: lines.filter((l) => l.qty > 0),
+      ...(occurredDate !== todayDateKeyIST()
+        ? { occurredAt: dateKeyToOccurredAt(occurredDate) }
+        : {}),
     };
 
     const parsed = DispatchToLaundrySchema.safeParse(payload as any);
@@ -267,6 +285,31 @@ export default function DispatchPage() {
               disabled={boot.loading || !propertyId}
               leadingIcon="truck"
             />
+
+            <div className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
+              <label
+                htmlFor="dispatch-date"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Transaction date
+              </label>
+              <input
+                id="dispatch-date"
+                type="date"
+                max={todayDateKeyIST()}
+                value={occurredDate}
+                onChange={(e) => {
+                  setOccurredDate(e.target.value || todayDateKeyIST());
+                  setDone(false);
+                }}
+                className="mt-2 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+              />
+              {occurredDate !== todayDateKeyIST() ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  Backdating to {occurredDate}
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 

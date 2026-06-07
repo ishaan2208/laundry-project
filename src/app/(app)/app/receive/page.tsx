@@ -39,6 +39,19 @@ import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor"
 import { receiveFromLaundry } from "@/actions/transactions";
 import { ReceiveFromLaundrySchema } from "@/actions/transactions/schemas.client";
 
+function todayDateKeyIST() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
+    new Date()
+  );
+}
+
+function dateKeyToOccurredAt(dateKey: string): Date {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const endUtc = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - istOffsetMs);
+  return new Date(endUtc.getTime() - 1);
+}
+
 const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:receive";
 const LS_RECEIVE_ITEM_FREQ = "laundry:itemFreq:receive";
@@ -85,6 +98,7 @@ export default function ReceivePage() {
   >({});
 
   const [lines, setLines] = React.useState<ReceiveLine[]>([]);
+  const [occurredDate, setOccurredDate] = React.useState(todayDateKeyIST);
 
   // Bootstrap defaults
   React.useEffect(() => {
@@ -224,6 +238,9 @@ export default function ReceivePage() {
           rewashQty: l.rewashQty,
         }))
         .filter((l) => l.receivedCleanQty + l.damagedQty + l.rewashQty > 0),
+      ...(occurredDate !== todayDateKeyIST()
+        ? { occurredAt: dateKeyToOccurredAt(occurredDate) }
+        : {}),
     };
 
     const parsed = ReceiveFromLaundrySchema.safeParse(payload as any);
@@ -339,6 +356,31 @@ export default function ReceivePage() {
               disabled={boot.loading || !propertyId}
               leadingIcon="truck"
             />
+
+            <div className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
+              <label
+                htmlFor="receive-date"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Transaction date
+              </label>
+              <input
+                id="receive-date"
+                type="date"
+                max={todayDateKeyIST()}
+                value={occurredDate}
+                onChange={(e) => {
+                  setOccurredDate(e.target.value || todayDateKeyIST());
+                  setDone(false);
+                }}
+                className="mt-2 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+              />
+              {occurredDate !== todayDateKeyIST() ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  Backdating to {occurredDate}
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 

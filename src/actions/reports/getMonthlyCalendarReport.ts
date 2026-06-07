@@ -53,32 +53,30 @@ export async function getMonthlyCalendarReport(input: {
   let checkoutRoomsByDate: Record<string, number> = {};
 
   if (input.transactionType === TxnType.DISPATCH_TO_LAUNDRY) {
-    // 🔴 Hard‑coded mapping between internal and external property IDs
+    const property = await prisma.property.findUnique({
+      where: { id: input.propertyId },
+      select: { pmsPropertyId: true },
+    });
     const externalPropertyId =
-      {
-        "cmjit5fed00030jush3szc50b": "5",
-        "cmjit5fed00020jus153iq3xb": "3",
-        "cmjit5fec00000jus9iv5e33l":"1",
-        "cmjit5fee00040jusbedegruh":"63",
-        "cmjit5fee00050jus5aqrlfs5":"67",
-        "cmjit5fed00010juscawwjtgk":"2"
-        // add more as needed
-      }[input.propertyId] ?? "DEFAULT_EXTERNAL_PROP_ID";
+      property?.pmsPropertyId != null
+        ? String(property.pmsPropertyId)
+        : null;
 
-    try {
-      const data = await apiRequest<CheckoutRoomsResponse>({
-        method: "GET",
-        url: "/analytics/checkout-rooms",
-        params: {
-          propertyId: externalPropertyId, // 👈 send the mapped / hard‑coded ID
-          month: input.month,
-        },
-      });
-      console.log("checkout-rooms API response", data);
-      checkoutRoomsByDate = data.checkoutRoomsByDate ?? {};
-    } catch (error) {
-      console.error("Error fetching checkout rooms", error);
-      checkoutRoomsByDate = {};
+    if (externalPropertyId) {
+      try {
+        const data = await apiRequest<CheckoutRoomsResponse>({
+          method: "GET",
+          url: "/analytics/checkout-rooms",
+          params: {
+            propertyId: externalPropertyId,
+            month: input.month,
+          },
+        });
+        checkoutRoomsByDate = data.checkoutRoomsByDate ?? {};
+      } catch (error) {
+        console.error("Error fetching checkout rooms", error);
+        checkoutRoomsByDate = {};
+      }
     }
   }
 

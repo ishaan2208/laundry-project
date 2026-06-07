@@ -1,5 +1,7 @@
 import { prisma } from "../src/lib/db";
 
+const PMS_PROPERTY_IDS = [1, 2, 3, 5, 63, 67] as const;
+
 async function main() {
   // 6 properties (edit names later)
   const properties = await Promise.all(
@@ -13,8 +15,12 @@ async function main() {
     ].map((name, idx) =>
       prisma.property.upsert({
         where: { code: `H${idx + 1}` },
-        update: { name, isActive: true },
-        create: { name, code: `H${idx + 1}` },
+        update: { name, isActive: true, pmsPropertyId: PMS_PROPERTY_IDS[idx] },
+        create: {
+          name,
+          code: `H${idx + 1}`,
+          pmsPropertyId: PMS_PROPERTY_IDS[idx],
+        },
       })
     )
   );
