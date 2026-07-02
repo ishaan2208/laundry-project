@@ -6,11 +6,31 @@ import { istDayEndUtc, istDayStartUtc } from "@/lib/dateKeys";
 
 export type ComplianceSideStatus = "filled" | "missing";
 
+export type LaundryRecordSource = "pms_backfill" | "laundry_app";
+
+export type DailyComplianceLine = {
+  linenItemId: string;
+  linenItemName: string;
+  qty: number;
+};
+
 export type DailyComplianceSide = {
   status: ComplianceSideStatus;
   transactionId?: string;
   totalQty?: number;
+  source?: LaundryRecordSource;
+  recordedAt?: string;
+  lines?: DailyComplianceLine[];
 };
+
+function inferRecordSource(note: string | null | undefined): LaundryRecordSource {
+  if (!note) return "laundry_app";
+  const lower = note.toLowerCase();
+  if (lower.includes("backfilled") || lower.includes("pms compliance")) {
+    return "pms_backfill";
+  }
+  return "laundry_app";
+}
 
 export type DailyComplianceResult = {
   available: true;
@@ -65,9 +85,15 @@ async function getSideStatus(
     },
     select: {
       id: true,
+      note: true,
+      occurredAt: true,
       entries: {
         where: { qtyDelta: { gt: 0 } },
-        select: { qtyDelta: true },
+        select: {
+          qtyDelta: true,
+          linenItemId: true,
+          linenItem: { select: { name: true } },
+        },
       },
     },
     orderBy: { occurredAt: "asc" },
@@ -75,17 +101,39 @@ async function getSideStatus(
 
   let totalQty = 0;
   let transactionId: string | undefined;
+  let source: LaundryRecordSource | undefined;
+  let recordedAt: string | undefined;
+  const lineMap = new Map<string, DailyComplianceLine>();
 
   for (const txn of transactions) {
     const txnQty = txn.entries.reduce((sum, e) => sum + e.qtyDelta, 0);
     if (txnQty > 0) {
       totalQty += txnQty;
-      transactionId ??= txn.id;
+      if (!transactionId) {
+        transactionId = txn.id;
+        source = inferRecordSource(txn.note);
+        recordedAt = txn.occurredAt.toISOString();
+      }
+      for (const entry of txn.entries) {
+        const existing = lineMap.get(entry.linenItemId);
+        if (existing) {
+          existing.qty += entry.qtyDelta;
+        } else {
+          lineMap.set(entry.linenItemId, {
+            linenItemId: entry.linenItemId,
+            linenItemName: entry.linenItem.name,
+            qty: entry.qtyDelta,
+          });
+        }
+      }
     }
   }
 
   if (totalQty > 0) {
-    return { status: "filled", transactionId, totalQty };
+    const lines = [...lineMap.values()].sort((a, b) =>
+      a.linenItemName.localeCompare(b.linenItemName)
+    );
+    return { status: "filled", transactionId, totalQty, source, recordedAt, lines };
   }
 
   return { status: "missing" };
