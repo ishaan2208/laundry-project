@@ -1,18 +1,6 @@
 // src/app/app/stock/loading.tsx
 import { Skeleton } from "@/components/ui/skeleton";
 
-function BalanceRowSkeleton() {
-  return (
-    <li className="flex items-center justify-between gap-3 py-3">
-      <div className="min-w-0 flex-1">
-        <Skeleton className="h-4 w-40 rounded-full" />
-        <Skeleton className="mt-2 h-3 w-24 rounded-full" />
-      </div>
-      <Skeleton className="h-5 w-10 rounded-full" />
-    </li>
-  );
-}
-
 export default function Loading() {
   return (
     <div className="min-h-dvh bg-background pb-6">
@@ -31,27 +19,38 @@ export default function Loading() {
         aria-busy="true"
         aria-live="polite"
       >
-        {/* Bucket chips skeleton */}
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-11 w-28 shrink-0 rounded-full" />
-          ))}
-        </div>
-
-        {/* Headline card skeleton */}
+        {/* Headline card: total + the two states */}
         <div className="surface rounded-2xl p-4">
           <div className="flex items-baseline justify-between gap-3">
             <Skeleton className="h-5 w-24 rounded-full" />
             <Skeleton className="h-8 w-16 rounded-full" />
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Skeleton className="h-[76px] rounded-xl" />
+            <Skeleton className="h-[76px] rounded-xl" />
+          </div>
+        </div>
+
+        {/* Item list */}
+        <div className="surface rounded-2xl p-4">
+          <Skeleton className="h-5 w-24 rounded-full" />
           <ul className="mt-3 divide-y divide-border border-t">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <BalanceRowSkeleton key={i} />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="h-4 w-40 rounded-full" />
+                  <Skeleton className="mt-2 h-3 w-32 rounded-full" />
+                </div>
+                <Skeleton className="h-5 w-10 rounded-full" />
+              </li>
             ))}
           </ul>
         </div>
 
-        {/* Related job rows skeleton */}
+        {/* Related job rows */}
         <div className="space-y-3">
           <Skeleton className="h-16 w-full rounded-2xl" />
           <Skeleton className="h-16 w-full rounded-2xl" />

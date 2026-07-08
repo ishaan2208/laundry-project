@@ -28,6 +28,7 @@ import { dispatchToLaundry } from "@/actions/transactions";
 import { DispatchToLaundrySchema } from "@/actions/transactions/schemas.client";
 import { useProperty } from "@/components/PropertyProvider";
 import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
+import { getLastVendorForProperty } from "@/actions/ui/getLastVendorForProperty";
 import { buildSentStory } from "@/lib/laundryStory";
 import { ShareUpdate } from "@/components/mobile/ShareUpdate";
 
@@ -94,15 +95,44 @@ export default function SendToLaundryPage() {
     );
   }, [boot.data?.properties, appPropertyId]);
 
+  // Default the laundry so staff rarely pick it. Instant hint from this
+  // device's last send, then the hotel's real last send/receive vendor
+  // (server) takes over — works on a new phone or for a different person.
+  // A manual choice always wins and is not overridden.
+  const vendorTouched = React.useRef(false);
+
   React.useEffect(() => {
-    if (!boot.data?.vendors?.length) return;
+    // New hotel → its vendor should re-default, not carry over.
+    vendorTouched.current = false;
+    setVendorId(null);
+  }, [propertyId]);
+
+  React.useEffect(() => {
+    if (!boot.data?.vendors?.length || vendorTouched.current || vendorId)
+      return;
     const saved = localStorage.getItem(LS_VENDOR);
     if (saved && boot.data.vendors.some((v) => v.id === saved)) {
       setVendorId(saved);
     } else if (boot.data.vendors.length === 1) {
       setVendorId(boot.data.vendors[0].id);
     }
-  }, [boot.data?.vendors]);
+  }, [boot.data?.vendors, vendorId]);
+
+  React.useEffect(() => {
+    if (!propertyId || !boot.data?.vendors?.length) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getLastVendorForProperty({ propertyId });
+      if (cancelled || !res.ok || !res.vendorId || vendorTouched.current)
+        return;
+      if (boot.data?.vendors.some((v) => v.id === res.vendorId)) {
+        setVendorId(res.vendorId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, boot.data?.vendors]);
 
   // Most-used items float to the top; order is fixed for the session
   // so rows never jump while counting.
@@ -255,7 +285,10 @@ export default function SendToLaundryPage() {
               label="Laundry"
               value={vendorId}
               options={vendorOptions}
-              onChange={(v) => setVendorId(v)}
+              onChange={(v) => {
+                vendorTouched.current = true;
+                setVendorId(v);
+              }}
               placeholder="Choose laundry"
               hint="Who is taking the linen?"
               disabled={!propertyId}

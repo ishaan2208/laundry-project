@@ -1,31 +1,23 @@
 import type { StockAuditRow } from "@/actions/reports/types";
-import { LinenCondition, LocationKind } from "@/generated/prisma";
-import {
-  STOCK_AUDIT_CONDITION_ORDER,
-  visibleLocationKindsForAudit,
-} from "@/lib/stockAuditConstants";
+import { LocationKind } from "@/generated/prisma";
 
 function escapeCsvCell(s: string): string {
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
-function condQty(row: StockAuditRow, c: LinenCondition): number {
-  return row.byCondition.find((x) => x.condition === c)?.qty ?? 0;
+function atLaundry(row: StockAuditRow): number {
+  return (
+    row.byLocationKind.find((x) => x.locationKind === LocationKind.VENDOR)
+      ?.qty ?? 0
+  );
 }
 
-function kindQty(row: StockAuditRow, k: LocationKind): number {
-  return row.byLocationKind.find((x) => x.locationKind === k)?.qty ?? 0;
-}
-
-function vendorBucketQty(row: StockAuditRow): number {
-  return kindQty(row, LocationKind.VENDOR);
-}
-
-function nonVendorBucketQty(row: StockAuditRow): number {
-  return row.totalQty - vendorBucketQty(row);
-}
-
+/**
+ * Weekly totals as a spreadsheet, in the same three numbers the app shows:
+ * with you (at the hotel), at the laundry, and total. No internal condition
+ * or location buckets — they don't form a complete circle and only confuse.
+ */
 export function buildStockAuditCsv(opts: {
   propertyName: string;
   generatedAtIso: string;
@@ -33,37 +25,26 @@ export function buildStockAuditCsv(opts: {
   includeDiscarded: boolean;
   rows: StockAuditRow[];
 }): string {
-  const kinds = visibleLocationKindsForAudit(
-    opts.includeVendor,
-    opts.includeDiscarded
-  );
-
   const header = [
     "linen_item_id",
     "name",
     "sku",
+    "with_you_qty",
+    "at_laundry_qty",
     "total_qty",
-    ...(opts.includeVendor ? ["vendor_qty", "non_vendor_qty"] : []),
-    ...STOCK_AUDIT_CONDITION_ORDER.map((c) => `condition_${c}`),
-    ...kinds.map((k) => `location_${k}`),
   ];
 
   const lines = [header.map(escapeCsvCell).join(",")];
 
   for (const row of opts.rows) {
+    const out = atLaundry(row);
     const cells = [
       row.linenItemId,
       row.linenItemName,
       row.sku ?? "",
+      String(row.totalQty - out),
+      String(out),
       String(row.totalQty),
-      ...(opts.includeVendor
-        ? [
-            String(vendorBucketQty(row)),
-            String(nonVendorBucketQty(row)),
-          ]
-        : []),
-      ...STOCK_AUDIT_CONDITION_ORDER.map((c) => String(condQty(row, c))),
-      ...kinds.map((k) => String(kindQty(row, k))),
     ];
     lines.push(cells.map(escapeCsvCell).join(","));
   }
@@ -71,8 +52,7 @@ export function buildStockAuditCsv(opts: {
   const meta = [
     `# property: ${opts.propertyName}`,
     `# generated_at_utc: ${opts.generatedAtIso}`,
-    `# include_vendor: ${opts.includeVendor}`,
-    `# include_discarded_lost: ${opts.includeDiscarded}`,
+    `# with_you = at the hotel, at_laundry = sent and not yet back, total = both`,
   ];
 
   return `${meta.join("\n")}\n${lines.join("\n")}\n`;

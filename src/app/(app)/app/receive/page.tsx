@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
+import { getLastVendorForProperty } from "@/actions/ui/getLastVendorForProperty";
 import { receiveFromLaundry } from "@/actions/transactions";
 import { ReceiveFromLaundrySchema } from "@/actions/transactions/schemas.client";
 import { useProperty } from "@/components/PropertyProvider";
@@ -90,15 +91,42 @@ export default function ReceiveFromLaundryPage() {
     );
   }, [boot.data?.properties, appPropertyId]);
 
+  // Default the laundry so staff rarely pick it. Instant hint from this
+  // device's last receive, then the hotel's real last send/receive vendor
+  // (server) takes over. A manual choice always wins.
+  const vendorTouched = React.useRef(false);
+
   React.useEffect(() => {
-    if (!boot.data?.vendors?.length) return;
+    vendorTouched.current = false;
+    setVendorId(null);
+  }, [propertyId]);
+
+  React.useEffect(() => {
+    if (!boot.data?.vendors?.length || vendorTouched.current || vendorId)
+      return;
     const saved = localStorage.getItem(LS_VENDOR);
     if (saved && boot.data.vendors.some((v) => v.id === saved)) {
       setVendorId(saved);
     } else if (boot.data.vendors.length === 1) {
       setVendorId(boot.data.vendors[0].id);
     }
-  }, [boot.data?.vendors]);
+  }, [boot.data?.vendors, vendorId]);
+
+  React.useEffect(() => {
+    if (!propertyId || !boot.data?.vendors?.length) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getLastVendorForProperty({ propertyId });
+      if (cancelled || !res.ok || !res.vendorId || vendorTouched.current)
+        return;
+      if (boot.data?.vendors.some((v) => v.id === res.vendorId)) {
+        setVendorId(res.vendorId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, boot.data?.vendors]);
 
   // What this laundry still holds — drives the "waiting to come back" list.
   React.useEffect(() => {
@@ -375,7 +403,10 @@ export default function ReceiveFromLaundryPage() {
               label="Laundry"
               value={vendorId}
               options={vendorOptions}
-              onChange={setVendorId}
+              onChange={(v) => {
+                vendorTouched.current = true;
+                setVendorId(v);
+              }}
               placeholder="Choose laundry"
               hint="Who brought the linen back?"
               disabled={!propertyId}

@@ -11,15 +11,6 @@ import { NotebookText, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-const locationLabels: Record<string, string> = {
-  CLEAN_STORE: "Ready to use",
-  SOILED_STORE: "To be washed",
-  REWASH_BIN: "Wash again",
-  DAMAGED_BIN: "Damaged",
-  DISCARDED_LOST: "Thrown away / lost",
-  VENDOR: "At the laundry",
-};
-
 function fmt(dt: Date) {
   return format(dt, "d MMM yyyy, hh:mm a");
 }
@@ -51,6 +42,12 @@ export default async function TxnDetailPage({
   const shareable =
     t.type === TxnType.DISPATCH_TO_LAUNDRY ||
     t.type === TxnType.RECEIVE_FROM_LAUNDRY;
+
+  // Show only where linen ended up (positive side). The negative side is the
+  // internal source bucket — hidden so the broken clean/soiled circle never
+  // surfaces. Fall back to all entries if a txn has no positive side.
+  const positives = t.entries.filter((e) => e.qtyDelta > 0);
+  const movedItems = positives.length ? positives : t.entries;
 
   return (
     <div className="min-h-dvh bg-background pb-8">
@@ -105,47 +102,31 @@ export default async function TxnDetailPage({
           ) : null}
         </section>
 
-        {/* What moved */}
+        {/* What moved — only where linen ended up (its destination), so the
+            internal source buckets that don't form a complete circle never
+            show. Condition pills carry the meaning (clean / damaged / rewash). */}
         <section aria-label="Items" className="surface rounded-2xl">
           <h2 className="px-4 pb-1 pt-4 text-base font-bold">What moved</h2>
           <ul className="divide-y divide-border">
-            {t.entries.map((e) => {
-              const isPos = e.qtyDelta >= 0;
-              return (
-                <li
-                  key={e.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-medium">
-                      {e.linenItem.name}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                      <span>
-                        {isPos ? "Into" : "Out of"}{" "}
-                        {locationLabels[e.location.kind] ?? e.location.name}
-                        {e.location.vendorName
-                          ? ` (${e.location.vendorName})`
-                          : ""}
-                      </span>
-                      <StatusPill
-                        condition={e.condition as any}
-                        className="px-2 py-0.5"
-                      />
-                    </div>
-                  </div>
-                  <span
-                    data-numeric
-                    className={cn(
-                      "text-lg font-bold",
-                      isPos ? "text-foreground" : "text-muted-foreground"
-                    )}
-                  >
-                    {isPos ? `+${e.qtyDelta}` : e.qtyDelta}
+            {movedItems.map((e) => (
+              <li
+                key={e.id}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-base font-medium">
+                    {e.linenItem.name}
                   </span>
-                </li>
-              );
-            })}
+                  <StatusPill
+                    condition={e.condition as any}
+                    className="px-2 py-0.5"
+                  />
+                </div>
+                <span data-numeric className="text-lg font-bold">
+                  {Math.abs(e.qtyDelta)}
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
 

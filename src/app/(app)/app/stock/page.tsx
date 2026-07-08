@@ -1,8 +1,8 @@
-// src/app/app/stock/page.tsx — the "Linen" tab: where is our linen right now?
+// src/app/app/stock/page.tsx — the "Linen" tab: how much do we own, and where is it?
 import { prisma } from "@/lib/db";
 import { requireUser, isAdmin } from "@/lib/auth";
-import { LocationKind, UserRole } from "@/generated/prisma";
-import { getBalances } from "@/actions/reports/getBalances";
+import { UserRole } from "@/generated/prisma";
+import { getStockOverview } from "@/actions/reports/getStockOverview";
 import PropertyPicker from "@/components/reports/PropertyPicker";
 import { PageHeader } from "@/components/mobile/PageHeader";
 import { HelpNote } from "@/components/mobile/HelpNote";
@@ -12,42 +12,16 @@ import Link from "next/link";
 import { ClipboardList, History, ChevronRight, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BASE_PATH = "/app/stock";
-
-/** Staff-language names for the system buckets. */
-const buckets: { kind: LocationKind; label: string }[] = [
-  { kind: LocationKind.CLEAN_STORE, label: "Ready to use" },
-  { kind: LocationKind.SOILED_STORE, label: "To be washed" },
-  { kind: LocationKind.VENDOR, label: "At the laundry" },
-  { kind: LocationKind.REWASH_BIN, label: "Wash again" },
-  { kind: LocationKind.DAMAGED_BIN, label: "Damaged" },
-  { kind: LocationKind.DISCARDED_LOST, label: "Thrown away / lost" },
-];
-
-function parseKind(v: unknown): LocationKind {
-  if (
-    typeof v === "string" &&
-    (Object.values(LocationKind) as string[]).includes(v)
-  ) {
-    return v as LocationKind;
-  }
-  return LocationKind.CLEAN_STORE;
-}
-
 export default async function StockPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
-  const sp = (await searchParams) as Record<
-    string,
-    string | string[] | undefined
-  >;
+  const sp = await searchParams;
 
   const propertyIdParam =
     typeof sp.propertyId === "string" ? sp.propertyId : undefined;
-  const locationKind = parseKind(sp.locationKind);
 
   const properties =
     user.role === UserRole.ADMIN
@@ -70,59 +44,18 @@ export default async function StockPage({
     : undefined;
 
   const res = propertyId
-    ? await getBalances({ propertyId, locationKind })
-    : { ok: true as const, rows: [] };
+    ? await getStockOverview({ propertyId })
+    : null;
 
-  // One line per item (per vendor for the laundry view), conditions summed.
-  type Line = { key: string; name: string; sub?: string; qty: number };
-  const lines: Line[] = [];
-  if (res.ok) {
-    const map = new Map<string, Line>();
-    for (const r of res.rows) {
-      const key =
-        locationKind === LocationKind.VENDOR
-          ? `${r.linenItemId}:${r.vendorId ?? ""}`
-          : r.linenItemId;
-      const existing = map.get(key);
-      if (existing) {
-        existing.qty += r.qty;
-      } else {
-        map.set(key, {
-          key,
-          name: r.linenItemName,
-          sub:
-            locationKind === LocationKind.VENDOR
-              ? r.vendorName ?? undefined
-              : undefined,
-          qty: r.qty,
-        });
-      }
-    }
-    lines.push(
-      ...[...map.values()].sort(
-        (a, b) => Number(b.qty < 0) - Number(a.qty < 0) || b.qty - a.qty
-      )
-    );
-  }
-
-  const total = lines.reduce((s, l) => s + l.qty, 0);
-  const hasNegative = lines.some((l) => l.qty < 0);
-  const bucketLabel =
-    buckets.find((b) => b.kind === locationKind)?.label ?? "Linen";
-
-  const chipHref = (kind: LocationKind) => {
-    const p = new URLSearchParams();
-    if (propertyId) p.set("propertyId", propertyId);
-    p.set("locationKind", kind);
-    return `${BASE_PATH}?${p.toString()}`;
-  };
+  const overview = res?.ok ? res.data : null;
+  const admin = isAdmin(user);
 
   return (
     <div className="min-h-dvh bg-background pb-6">
       <RememberProperty propertyId={propertyId} />
       <PageHeader
         title="Linen"
-        subtitle={currentPropertyName ?? "Where everything is right now"}
+        subtitle={currentPropertyName ?? "How much you own, and where it is"}
         back={false}
       />
 
@@ -141,100 +74,171 @@ export default async function StockPage({
               Linen numbers load after you pick one.
             </p>
           </div>
+        ) : !overview ? (
+          <div className="surface rounded-2xl p-5 text-center text-sm text-muted-foreground">
+            {res && !res.ok ? res.message : "Could not load linen numbers."}
+          </div>
         ) : (
           <>
-            {/* Bucket chips: plain words, one tap */}
-            <nav
-              aria-label="Linen location"
-              className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {buckets.map((b) => {
-                const active = b.kind === locationKind;
-                return (
-                  <Link
-                    key={b.kind}
-                    href={chipHref(b.kind)}
-                    aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "press inline-flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-semibold whitespace-nowrap",
-                      active
-                        ? "border-transparent bg-primary text-primary-foreground"
-                        : "bg-card text-foreground"
-                    )}
-                  >
-                    {b.label}
-                  </Link>
-                );
-              })}
-            </nav>
-
             <HelpNote>
-              Tap a word above to see where the linen is. These numbers add
-              themselves up from every entry in the register.
+              Every piece of linen is either <strong>with you</strong> at the
+              hotel or <strong>at the laundry</strong>. Add them up and that is
+              your total. These numbers come straight from what staff send and
+              receive.
             </HelpNote>
 
-            {hasNegative ? (
+            {overview.hasIssue ? (
               <HelpNote tone="warn">
-                A minus number is impossible — some entries went wrong.{" "}
-                {isAdmin(user)
-                  ? "Fix it with a Fresh start in Admin."
-                  : "Tell your admin so they can fix it."}
+                Some numbers have gone below zero, which is impossible.{" "}
+                {admin
+                  ? "Do a Fresh start (in Admin) to count what's real and fix it."
+                  : "Tell your admin — they can fix it with a Fresh start."}
               </HelpNote>
             ) : null}
 
-            {/* Headline number for this bucket */}
+            {/* Headline: total split into the two states */}
             <section className="surface rounded-2xl p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-base font-bold">{bucketLabel}</h2>
+                <h2 className="text-base font-bold">Total linen</h2>
                 <div className="flex items-baseline gap-1.5">
                   <span
                     data-numeric
                     className="text-3xl font-bold tracking-tight"
                   >
-                    {total}
+                    {overview.totals.total}
                   </span>
                   <span className="text-sm text-muted-foreground">pieces</span>
                 </div>
               </div>
 
-              {lines.length === 0 ? (
-                <p className="pt-3 pb-1 text-center text-sm text-muted-foreground">
-                  Nothing here right now.
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div
+                  className={cn(
+                    "rounded-xl px-3.5 py-3",
+                    overview.totals.inStock < 0
+                      ? "bg-damaged-soft"
+                      : "bg-clean-soft"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "text-sm font-medium",
+                      overview.totals.inStock < 0 ? "text-damaged" : "text-clean"
+                    )}
+                  >
+                    With you
+                  </div>
+                  <div
+                    data-numeric
+                    className={cn(
+                      "mt-0.5 text-2xl font-bold",
+                      overview.totals.inStock < 0 ? "text-damaged" : "text-clean"
+                    )}
+                  >
+                    {overview.totals.inStock}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs",
+                      overview.totals.inStock < 0
+                        ? "text-damaged/80"
+                        : "text-clean/80"
+                    )}
+                  >
+                    at the hotel
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "rounded-xl px-3.5 py-3",
+                    overview.totals.atLaundry < 0
+                      ? "bg-damaged-soft"
+                      : "bg-soiled-soft"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "text-sm font-medium",
+                      overview.totals.atLaundry < 0
+                        ? "text-damaged"
+                        : "text-soiled"
+                    )}
+                  >
+                    At the laundry
+                  </div>
+                  <div
+                    data-numeric
+                    className={cn(
+                      "mt-0.5 text-2xl font-bold",
+                      overview.totals.atLaundry < 0
+                        ? "text-damaged"
+                        : "text-soiled"
+                    )}
+                  >
+                    {overview.totals.atLaundry}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs",
+                      overview.totals.atLaundry < 0
+                        ? "text-damaged/80"
+                        : "text-soiled/80"
+                    )}
+                  >
+                    out for washing
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Per-item breakdown */}
+            <section aria-label="Every item" className="surface rounded-2xl">
+              <h2 className="px-4 pb-1 pt-4 text-base font-bold">
+                Every item
+              </h2>
+              {overview.items.length === 0 ? (
+                <p className="px-4 pb-4 pt-2 text-center text-sm text-muted-foreground">
+                  No linen recorded yet.
                 </p>
               ) : (
-                <ul className="mt-3 divide-y divide-border border-t">
-                  {lines.map((l) => (
-                    <li
-                      key={l.key}
-                      className="flex items-center justify-between gap-3 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-medium">
-                          {l.name}
-                        </div>
-                        {l.sub ? (
-                          <div className="truncate text-sm text-muted-foreground">
-                            {l.sub}
-                          </div>
-                        ) : null}
-                        {l.qty < 0 ? (
-                          <div className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-damaged">
-                            <TriangleAlert className="size-4" />
-                            Below zero — tell your admin
-                          </div>
-                        ) : null}
-                      </div>
-                      <span
-                        data-numeric
-                        className={cn(
-                          "text-lg font-bold",
-                          l.qty < 0 && "text-damaged"
-                        )}
+                <ul className="divide-y divide-border border-t">
+                  {overview.items.map((it) => {
+                    const bad = it.inStock < 0 || it.atLaundry < 0;
+                    return (
+                      <li
+                        key={it.linenItemId}
+                        className="flex items-center justify-between gap-3 px-4 py-3"
                       >
-                        {l.qty}
-                      </span>
-                    </li>
-                  ))}
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-medium">
+                            {it.name}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <span
+                              className={cn(it.inStock < 0 && "text-damaged")}
+                            >
+                              With you {it.inStock}
+                            </span>
+                            <span aria-hidden>·</span>
+                            <span
+                              className={cn(it.atLaundry < 0 && "text-damaged")}
+                            >
+                              Laundry {it.atLaundry}
+                            </span>
+                          </div>
+                          {bad ? (
+                            <div className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-damaged">
+                              <TriangleAlert className="size-4" />
+                              Below zero — tell your admin
+                            </div>
+                          ) : null}
+                        </div>
+                        <span data-numeric className="text-lg font-bold">
+                          {it.total}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -253,7 +257,7 @@ export default async function StockPage({
                     Count linen
                   </span>
                   <span className="block text-sm text-muted-foreground">
-                    Check real stock against the book
+                    Check real stock against these numbers
                   </span>
                 </span>
                 <ChevronRight className="size-5 text-muted-foreground" />
