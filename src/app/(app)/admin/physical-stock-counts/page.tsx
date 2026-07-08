@@ -1,16 +1,22 @@
 import Link from "next/link";
 import { listPhysicalStockCounts } from "@/actions/physicalCount/listPhysicalStockCounts";
 import { PhysicalStockCountStatus } from "@/generated/prisma";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
-function statusBadge(s: PhysicalStockCountStatus) {
-  if (s === PhysicalStockCountStatus.PENDING_REVIEW) return "default";
-  if (s === PhysicalStockCountStatus.APPROVED) return "secondary";
-  return "destructive";
-}
+const STATUS_LABEL: Record<PhysicalStockCountStatus, string> = {
+  [PhysicalStockCountStatus.PENDING_REVIEW]: "Waiting for review",
+  [PhysicalStockCountStatus.APPROVED]: "Approved",
+  [PhysicalStockCountStatus.REJECTED]: "Rejected",
+};
+
+const STATUS_TONE: Record<PhysicalStockCountStatus, string> = {
+  [PhysicalStockCountStatus.PENDING_REVIEW]: "bg-soiled-soft text-soiled",
+  [PhysicalStockCountStatus.APPROVED]: "bg-clean-soft text-clean",
+  [PhysicalStockCountStatus.REJECTED]: "bg-damaged-soft text-damaged",
+};
 
 export default async function PhysicalStockCountsListPage() {
   const rows = await listPhysicalStockCounts({ limit: 150 });
@@ -25,12 +31,12 @@ export default async function PhysicalStockCountsListPage() {
         </p>
       </div>
 
-      <Card className="overflow-hidden rounded-2xl border p-0">
+      <div className="surface overflow-hidden rounded-2xl">
         <ScrollArea className="w-full">
           <div className="min-w-[640px]">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left">
+                <tr className="border-b bg-muted text-left">
                   <th className="px-3 py-2 font-medium">Property</th>
                   <th className="px-3 py-2 font-medium">Submitted</th>
                   <th className="px-3 py-2 font-medium">By</th>
@@ -64,12 +70,15 @@ export default async function PhysicalStockCountsListPage() {
                         {r.submitterName ?? r.submitterEmail ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {r.includeVendor ? "vendor" : "no vend"} ·{" "}
-                        {r.includeDiscarded ? "disc" : "no disc"}
+                        {r.includeVendor ? "Includes laundry vendor" : "No laundry vendor"} ·{" "}
+                        {r.includeDiscarded ? "Includes discarded" : "No discarded"}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant={statusBadge(r.status)}>
-                          {r.status.replaceAll("_", " ")}
+                        <Badge
+                          variant="secondary"
+                          className={cn("rounded-full", STATUS_TONE[r.status])}
+                        >
+                          {STATUS_LABEL[r.status]}
                         </Badge>
                       </td>
                       <td className="px-3 py-2">
@@ -87,7 +96,7 @@ export default async function PhysicalStockCountsListPage() {
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-      </Card>
+      </div>
     </div>
   );
 }

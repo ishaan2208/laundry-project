@@ -1,30 +1,28 @@
 // src/app/app/vendors/page.tsx
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { LinenCondition, UserRole } from "@/generated/prisma";
 import { getVendorPending } from "@/actions/reports/getVendorPending";
 import { VendorPendingCard } from "@/components/reports/VendorPendingCard";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Truck, Building2, Filter, AlertTriangle } from "lucide-react";
+import PropertyPicker from "@/components/reports/PropertyPicker";
+import { PageHeader } from "@/components/mobile/PageHeader";
+import { RememberProperty } from "@/components/RememberProperty";
+import { resolvePropertyId } from "@/lib/propertyPref.server";
 
 function labelEnum(v: string) {
-  return v.replaceAll("_", " ");
+  return v.replaceAll("_", " ").toLowerCase();
 }
 
 export default async function VendorsPage({
   searchParams,
 }: {
-  searchParams:
-    | Record<string, string | string[] | undefined>
-    | Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
 
-  const propertyId =
+  const propertyIdParam =
     typeof sp.propertyId === "string" ? sp.propertyId : undefined;
 
   const condition =
@@ -49,25 +47,24 @@ export default async function VendorsPage({
           })
           .then((rows) => rows.map((r) => r.property));
 
+  const propertyId = await resolvePropertyId(propertyIdParam, properties);
+
   if (!propertyId) {
-    if (properties.length === 1) {
-      redirect(`/app/vendors?propertyId=${properties[0].id}`);
-    }
     return (
-      <div className="mx-auto w-full max-w-2xl p-3">
-        <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-          <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 ring-1 ring-violet-200/60 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-500/15">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold">Select a property</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Choose a property to view vendor pending (“in laundry” stock).
-              </div>
-            </div>
+      <div className="min-h-dvh bg-background pb-6">
+        <PageHeader
+          title="At the laundry"
+          subtitle="How much linen each laundry has right now"
+          back={false}
+        />
+        <main className="mx-auto w-full max-w-md px-4 pt-4">
+          <div className="surface rounded-2xl p-5 text-center">
+            <p className="text-base font-semibold">Choose your hotel first</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pick a hotel to see what&apos;s at each laundry.
+            </p>
           </div>
-        </Card>
+        </main>
       </div>
     );
   }
@@ -79,120 +76,94 @@ export default async function VendorsPage({
   });
 
   const res = await getVendorPending({ propertyId, condition, linenItemId });
+  const propertyName = properties.find((p) => p.id === propertyId)?.name;
+
   if (!res.ok) {
     return (
-      <div className="mx-auto w-full max-w-2xl p-3">
-        <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-          Failed to load.
-        </Card>
+      <div className="min-h-dvh bg-background pb-6">
+        <PageHeader
+          title="At the laundry"
+          subtitle={propertyName}
+          back={false}
+        />
+        <main className="mx-auto w-full max-w-md px-4 pt-4">
+          <div className="surface rounded-2xl p-5 text-center text-sm text-muted-foreground">
+            Could not load this. Try again.
+          </div>
+        </main>
       </div>
     );
   }
 
-  const propertyName = properties.find((p) => p.id === propertyId)?.name;
-
-  const activeChips = [
-    propertyName ? { k: "property", v: propertyName, icon: Building2 } : null,
-    condition
-      ? { k: "condition", v: labelEnum(condition), icon: Filter }
-      : null,
-    linenItemId
-      ? {
-          k: "item",
-          v: linenItems.find((i) => i.id === linenItemId)?.name ?? "Item",
-          icon: Filter,
-        }
-      : null,
-  ].filter(Boolean) as { k: string; v: string; icon: any }[];
-
   return (
-    <div className="mx-auto w-full max-w-2xl p-3">
-      {/* header card */}
-      <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-700 ring-1 ring-violet-200/60 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-500/15">
-                <Truck className="h-6 w-6" />
-              </div>
+    <div className="min-h-dvh bg-background pb-6">
+      <RememberProperty propertyId={propertyId} />
+      <PageHeader
+        title="At the laundry"
+        subtitle={propertyName}
+        back={false}
+        right={
+          <ReportFiltersSheet
+            title="Filters"
+            buttonLabel="Filters"
+            fields={[
+              {
+                key: "propertyId",
+                label: "Hotel",
+                type: "select",
+                options: properties.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                })),
+              },
+              {
+                key: "condition",
+                label: "Condition",
+                type: "select",
+                options: Object.values(LinenCondition).map((c) => ({
+                  value: c,
+                  label: labelEnum(c),
+                })),
+                placeholder: "All",
+              },
+              {
+                key: "linenItemId",
+                label: "Item",
+                type: "select",
+                options: linenItems.map((i) => ({
+                  value: i.id,
+                  label: i.name,
+                })),
+                placeholder: "All",
+              },
+            ]}
+          />
+        }
+      />
 
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold">
-                  Vendor Pending
-                </div>
-                {/* <div className="text-xs text-muted-foreground">
-                  “In laundry” = stock at vendor locations
-                </div> */}
-              </div>
-            </div>
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+        {properties.length > 1 ? (
+          <PropertyPicker
+            properties={properties}
+            selectedPropertyId={propertyId}
+          />
+        ) : null}
 
-            {/* chips */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {activeChips.map((c) => (
-                <Badge
-                  key={c.k}
-                  variant="secondary"
-                  className="rounded-full border border-violet-200/60 bg-white/60 text-xs backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                >
-                  <c.icon className="mr-1 h-3.5 w-3.5 text-violet-700 dark:text-violet-200" />
-                  {c.v}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <ReportFiltersSheet
-              title="Pending Filters"
-              buttonLabel="Filters"
-              fields={[
-                {
-                  key: "propertyId",
-                  label: "Property",
-                  type: "select",
-                  options: properties.map((p) => ({
-                    value: p.id,
-                    label: p.name,
-                  })),
-                },
-                {
-                  key: "condition",
-                  label: "Condition",
-                  type: "select",
-                  options: Object.values(LinenCondition).map((c) => ({
-                    value: c,
-                    label: labelEnum(c),
-                  })),
-                  placeholder: "All",
-                },
-                {
-                  key: "linenItemId",
-                  label: "Item",
-                  type: "select",
-                  options: linenItems.map((i) => ({
-                    value: i.id,
-                    label: i.name,
-                  })),
-                  placeholder: "All",
-                },
-              ]}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* list */}
-      <div className="mt-3 grid gap-2">
         {res.vendors.length ? (
-          res.vendors.map((v) => (
-            <VendorPendingCard key={v.vendorId} vendor={v} />
-          ))
+          <div className="space-y-3">
+            {res.vendors.map((v) => (
+              <VendorPendingCard key={v.vendorId} vendor={v} />
+            ))}
+          </div>
         ) : (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm text-muted-foreground backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            No pending stock for current filters.
-          </Card>
+          <div className="surface rounded-2xl p-6 text-center">
+            <p className="text-base font-semibold">Nothing at the laundry</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nothing matches your current filters.
+            </p>
+          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

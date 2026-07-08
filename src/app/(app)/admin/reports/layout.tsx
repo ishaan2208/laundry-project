@@ -15,7 +15,7 @@ export default async function ReportsLayout({
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Sticky header */}
-      <div className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="sticky top-0 z-(--z-header) border-b bg-background">
         <div className="mx-auto w-full max-w-5xl px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div>

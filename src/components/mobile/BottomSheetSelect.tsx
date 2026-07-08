@@ -1,17 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, Building2, Truck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, ChevronDown, Building2, Truck } from "lucide-react";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerBody,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 export type SelectOption = { value: string; label: string; subtitle?: string };
@@ -32,141 +31,103 @@ export function BottomSheetSelect(props: {
   options: SelectOption[];
   onChange: (value: string) => void;
   placeholder?: string;
+  /** One plain-language line shown inside the sheet, e.g. "Which laundry is picking up?" */
+  hint?: string;
   disabled?: boolean;
   leadingIcon?: LeadingIcon;
 }) {
   const [open, setOpen] = React.useState(false);
   const selected = props.options.find((o) => o.value === props.value);
-
   const Icon = props.leadingIcon ? LeadingIconMap[props.leadingIcon] : null;
 
   return (
-    <div className="space-y-2">
-      <div className="px-1 text-xs font-semibold text-muted-foreground">
-        {props.label}
-      </div>
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className={cn(
-              "h-14 w-full justify-between rounded-3xl px-4 text-base",
-              "border-violet-200/70 bg-white/60 backdrop-blur-[2px] shadow-sm",
-              "dark:border-violet-500/15 dark:bg-zinc-950/40",
-              "focus-visible:ring-2 focus-visible:ring-violet-500/40",
-              !selected && "text-muted-foreground"
-            )}
-            disabled={props.disabled}
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              {Icon ? (
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  <Icon className="h-5 w-5" />
-                </span>
-              ) : null}
-
-              <span className="min-w-0">
-                <span className="block truncate font-semibold text-foreground">
-                  {selected?.label ?? props.placeholder ?? "Select"}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {selected?.subtitle ?? "Tap to choose"}
-                </span>
-              </span>
-            </span>
-
-            <ChevronsUpDown className="h-5 w-5 opacity-70" />
-          </Button>
-        </SheetTrigger>
-
-        {/* Keyboard-less sheet: NO CommandInput / NO text fields */}
-        <SheetContent
-          side="bottom"
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger asChild>
+        <button
+          type="button"
+          disabled={props.disabled}
           className={cn(
-            "h-[88vh] rounded-t-3xl p-0",
-            "border-violet-200/60 bg-background/80 backdrop-blur-[2px]",
-            "dark:border-violet-500/15 overflow-scroll"
+            "surface press flex min-h-16 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left",
+            "disabled:opacity-50",
+            "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           )}
         >
-          <div className="flex h-full flex-col">
-            <SheetHeader className="px-4 pt-4">
-              <SheetTitle className="text-base">{props.label}</SheetTitle>
-            </SheetHeader>
+          {Icon ? (
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+              <Icon className="size-5" />
+            </span>
+          ) : null}
 
-            <div className="px-4 pb-3 pt-2 text-sm text-muted-foreground">
-              Tap one option. (No search to keep it thumb-only.)
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              {props.label}
+            </span>
+            <span
+              className={cn(
+                "block truncate text-base font-semibold",
+                !selected && "font-medium text-muted-foreground"
+              )}
+            >
+              {selected?.label ?? props.placeholder ?? "Tap to choose"}
+            </span>
+          </span>
+
+          <ChevronDown className="size-5 shrink-0 text-muted-foreground" />
+        </button>
+      </DrawerTrigger>
+
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>{props.label}</DrawerTitle>
+          {props.hint ? (
+            <DrawerDescription>{props.hint}</DrawerDescription>
+          ) : null}
+        </DrawerHeader>
+
+        <DrawerBody className="px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          {props.options.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              Nothing to choose yet. Ask your admin to set this up.
+            </p>
+          ) : (
+            <div role="listbox" aria-label={props.label} className="space-y-1">
+              {props.options.map((o) => {
+                const active = o.value === props.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      props.onChange(o.value);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "press flex min-h-14 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left",
+                      active ? "bg-accent" : "hover:bg-muted"
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-base font-semibold">
+                        {o.label}
+                      </span>
+                      {o.subtitle ? (
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {o.subtitle}
+                        </span>
+                      ) : null}
+                    </span>
+                    {active ? (
+                      <Check className="size-5 shrink-0 text-primary" />
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
-
-            <Separator className="opacity-60" />
-
-            <ScrollArea className="flex-1">
-              <div className="p-2">
-                {props.options.length === 0 ? (
-                  <div className="p-4 text-sm text-muted-foreground">
-                    No options available.
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {props.options.map((o) => {
-                      const active = o.value === props.value;
-                      return (
-                        <Button
-                          key={o.value}
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            props.onChange(o.value);
-                            setOpen(false);
-                          }}
-                          className={cn(
-                            "h-auto w-full justify-between rounded-2xl px-3 py-3 text-left",
-                            "hover:bg-violet-600/10 dark:hover:bg-violet-500/10",
-                            active &&
-                              "bg-violet-600/10 text-foreground dark:bg-violet-500/10"
-                          )}
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-base font-semibold">
-                              {o.label}
-                            </div>
-                            {o.subtitle ? (
-                              <div className="truncate text-sm text-muted-foreground">
-                                {o.subtitle}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="ml-3 flex h-10 w-10 items-center justify-center rounded-2xl border border-transparent">
-                            {active ? (
-                              <Check className="h-5 w-5 text-violet-700 dark:text-violet-200" />
-                            ) : null}
-                          </div>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            <div className="border-t border-violet-200/60 bg-background/70 p-3 backdrop-blur-[2px] dark:border-violet-500/15">
-              <Button
-                type="button"
-                variant="secondary"
-                className={cn(
-                  "h-12 w-full rounded-2xl text-base",
-                  "border border-violet-200/60 bg-white/60 backdrop-blur-[2px] shadow-sm",
-                  "dark:border-violet-500/15 dark:bg-zinc-950/40"
-                )}
-                onClick={() => setOpen(false)}
-              >
-                Done
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
+          )}
+        </DrawerBody>
+      </DrawerContent>
+    </Drawer>
   );
 }

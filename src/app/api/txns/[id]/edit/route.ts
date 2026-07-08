@@ -14,7 +14,6 @@ export async function POST(
   const res = await editTransactionEntriesAction({
     transactionId: id,
     reason: body?.reason,
-    occurredAt: body?.occurredAt,
     updates: body?.updates,
   });
 

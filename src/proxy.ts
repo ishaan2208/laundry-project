@@ -17,7 +17,7 @@ export default clerkMiddleware(
 
     if (isAdminRoute(req)) {
       const { sessionClaims } = await auth();
-      console.log("Session claims:", sessionClaims);
+
       const role = (sessionClaims as any)?.metadata?.role; // ✅ correct
 
       if (role !== "ADMIN") {

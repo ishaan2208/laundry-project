@@ -1,20 +1,32 @@
+import { cookies } from "next/headers";
 import BottomNav from "@/components/mobile/BottomNav";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Toaster } from "react-hot-toast";
+import { PropertyProvider } from "@/components/PropertyProvider";
+import { Toaster } from "sonner";
+import { requireUser, isAdmin } from "@/lib/auth";
+import { PROPERTY_COOKIE } from "@/lib/propertyPref";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = await requireUser();
+  const jar = await cookies();
+  const rememberedPropertyId = jar.get(PROPERTY_COOKIE)?.value;
+
   return (
     <div className="min-h-dvh bg-background">
-      <Toaster position="top-center" reverseOrder={false} />
-      {/* Floating theme switcher (thumb reachable + doesn't fight BottomNav) */}
-      <div className="pointer-events-none fixed right-3 top-3 z-50">
-        <div className="pointer-events-auto">
-          <ThemeToggle />
-        </div>
-      </div>
-
-      <main className="pb-20">{children}</main>
-      <BottomNav />
+      <Toaster
+        position="top-center"
+        richColors
+        toastOptions={{
+          style: { borderRadius: "16px" },
+        }}
+      />
+      <PropertyProvider initialPropertyId={rememberedPropertyId}>
+        <main>{children}</main>
+        <BottomNav isAdmin={isAdmin(user)} />
+      </PropertyProvider>
     </div>
   );
 }

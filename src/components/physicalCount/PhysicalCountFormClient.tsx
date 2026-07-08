@@ -1,15 +1,26 @@
 "use client";
 
 import * as React from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+
+import { CounterList, CounterRow } from "@/components/mobile/CounterList";
+import { StickyBar } from "@/components/mobile/StickyBar";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerBody,
+  DrawerFooter,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { submitPhysicalStockCount } from "@/actions/physicalCount/submitPhysicalStockCount";
-import { ClipboardList } from "lucide-react";
 
 type Row = {
   linenItemId: string;
@@ -25,26 +36,35 @@ export function PhysicalCountFormClient(props: {
   initialRows: Row[];
 }) {
   const router = useRouter();
-  const [qty, setQty] = React.useState<Record<string, number>>(() => {
-    const m: Record<string, number> = {};
-    for (const r of props.initialRows) {
-      m[r.linenItemId] = r.bookQty;
-    }
-    return m;
-  });
-  const [note, setNote] = React.useState("");
-  const [pending, setPending] = React.useState(false);
 
-  React.useEffect(() => {
+  const buildInitial = React.useCallback(() => {
     const m: Record<string, number> = {};
-    for (const r of props.initialRows) {
-      m[r.linenItemId] = r.bookQty;
-    }
-    setQty(m);
+    for (const r of props.initialRows) m[r.linenItemId] = r.bookQty;
+    return m;
   }, [props.initialRows]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const [qty, setQty] = React.useState<Record<string, number>>(buildInitial);
+  const [note, setNote] = React.useState("");
+  const [pending, setPending] = React.useState(false);
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setQty(buildInitial());
+  }, [buildInitial]);
+
+  const differences = React.useMemo(
+    () =>
+      props.initialRows
+        .map((r) => ({
+          ...r,
+          counted: qty[r.linenItemId] ?? 0,
+          delta: (qty[r.linenItemId] ?? 0) - r.bookQty,
+        }))
+        .filter((r) => r.delta !== 0),
+    [props.initialRows, qty]
+  );
+
+  async function onConfirm() {
     setPending(true);
     try {
       const lines = props.initialRows.map((r) => ({
@@ -62,86 +82,196 @@ export function PhysicalCountFormClient(props: {
         toast.error(res.message);
         return;
       }
-      toast.success("Submitted for admin review.");
+      toast.success("Count sent to admin for approval.");
       router.push(`/app/stock/physical-count/status/${res.id}`);
     } catch {
-      toast.error("Submit failed.");
+      toast.error("Could not send the count. Try again.");
     } finally {
       setPending(false);
     }
   }
 
-  return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <Card className="rounded-3xl border border-violet-200/60 bg-amber-50/40 p-4 text-sm dark:border-violet-500/15 dark:bg-amber-950/20">
-        <div className="flex gap-2 font-medium text-amber-950 dark:text-amber-100">
-          <ClipboardList className="h-5 w-5 shrink-0" />
-          <div>
-            Enter the <strong>total pieces</strong> you physically have for each
-            item (same scope as the filters: all buckets included or excluded).
-            When an admin approves, the system updates the ledger so{" "}
-            <strong>property-wide totals</strong> match your numbers. Variances
-            are posted to <strong>Clean store · CLEAN</strong> so totals align.
-          </div>
-        </div>
-      </Card>
+  if (props.initialRows.length === 0) {
+    return (
+      <div className="surface rounded-2xl p-5 text-center">
+        <p className="text-base font-semibold">No linen items yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your admin needs to add items like bedsheets and towels first.
+        </p>
+      </div>
+    );
+  }
 
-      <div className="space-y-2">
-        <Label htmlFor="staffNote">Note to admin (optional)</Label>
+  return (
+    <>
+      <section aria-label="Count each item">
+        <div className="px-1 pb-2">
+          <h2 className="text-base font-bold">Count every item</h2>
+          <p className="text-sm text-muted-foreground">
+            The book number is pre-filled. Change it to what you really see.
+          </p>
+        </div>
+
+        <CounterList>
+          {props.initialRows.map((r) => {
+            const counted = qty[r.linenItemId] ?? 0;
+            const delta = counted - r.bookQty;
+            return (
+              <CounterRow
+                key={r.linenItemId}
+                name={r.name}
+                meta={
+                  <span className="inline-flex items-center gap-2">
+                    <span>Book: {r.bookQty}</span>
+                    {delta !== 0 ? (
+                      <span
+                        data-numeric
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-bold",
+                          delta > 0
+                            ? "bg-clean-soft text-clean"
+                            : "bg-damaged-soft text-damaged"
+                        )}
+                      >
+                        {delta > 0 ? `+${delta}` : delta}
+                      </span>
+                    ) : null}
+                  </span>
+                }
+                value={counted}
+                onChange={(next) =>
+                  setQty((prev) => ({ ...prev, [r.linenItemId]: next }))
+                }
+              />
+            );
+          })}
+        </CounterList>
+      </section>
+
+      <div className="space-y-2 pt-1">
+        <Label htmlFor="staffNote" className="text-sm text-muted-foreground">
+          Note for admin (optional)
+        </Label>
         <Textarea
           id="staffNote"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="rounded-2xl"
-          placeholder="e.g. Counted after monthly room audit…"
+          className="rounded-xl text-base"
+          placeholder="e.g. counted after the morning rooms"
         />
       </div>
 
-      <div className="grid gap-2">
-        {props.initialRows.map((r) => (
-          <Card
-            key={r.linenItemId}
-            className="rounded-2xl border border-violet-200/50 p-3 dark:border-violet-500/15"
-          >
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium leading-tight">{r.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  Book total (now): {r.bookQty}
-                  {r.sku ? ` · SKU ${r.sku}` : ""}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs text-muted-foreground">
-                  Your count
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  className="h-11 w-28 rounded-xl font-mono tabular-nums"
-                  value={String(qty[r.linenItemId] ?? 0)}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    setQty((prev) => ({
-                      ...prev,
-                      [r.linenItemId]: Number.isFinite(v) ? Math.max(0, v) : 0,
-                    }));
-                  }}
-                />
-              </div>
+      <StickyBar>
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div
+              data-numeric
+              className={cn(
+                "text-2xl font-bold leading-tight",
+                differences.length > 0 && "text-soiled"
+              )}
+            >
+              {differences.length}
             </div>
-          </Card>
-        ))}
-      </div>
+            <div className="text-xs text-muted-foreground">
+              {differences.length === 1
+                ? "item differs from book"
+                : "items differ from book"}
+            </div>
+          </div>
+          <Button
+            size="xl"
+            className="flex-1"
+            disabled={pending}
+            onClick={() => setReviewOpen(true)}
+          >
+            Review &amp; submit
+          </Button>
+        </div>
+      </StickyBar>
 
-      <Button
-        type="submit"
-        disabled={pending}
-        className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-600/90"
-      >
-        {pending ? "Submitting…" : "Submit for admin approval"}
-      </Button>
-    </form>
+      <Drawer open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>
+              {differences.length === 0
+                ? "Everything matches the book"
+                : `${differences.length} ${
+                    differences.length === 1 ? "difference" : "differences"
+                  } found`}
+            </DrawerTitle>
+            <DrawerDescription>
+              An admin will check and approve this count.
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <DrawerBody className="px-5">
+            {differences.length === 0 ? (
+              <p className="py-4 text-base text-muted-foreground">
+                Your count is the same as the book for every item. Submit it to
+                put that on record.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {differences.map((d) => (
+                  <li
+                    key={d.linenItemId}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-medium">
+                        {d.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Book {d.bookQty} → you counted {d.counted}
+                      </div>
+                    </div>
+                    <span
+                      data-numeric
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-sm font-bold",
+                        d.delta > 0
+                          ? "bg-clean-soft text-clean"
+                          : "bg-damaged-soft text-damaged"
+                      )}
+                    >
+                      {d.delta > 0 ? `+${d.delta}` : d.delta}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DrawerBody>
+
+          <DrawerFooter className="space-y-2">
+            <Button
+              size="xl"
+              className="w-full"
+              disabled={pending}
+              onClick={onConfirm}
+            >
+              {pending ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                "Submit count for approval"
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              disabled={pending}
+              onClick={() => setReviewOpen(false)}
+            >
+              Go back and change
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }

@@ -2,18 +2,9 @@
 
 import * as React from "react";
 import {
-  LazyMotion,
-  domAnimation,
-  AnimatePresence,
-  m,
-  useReducedMotion,
-} from "framer-motion";
-import {
-  CheckCircle2,
   ShieldAlert,
   Trash2,
   AlertTriangle,
-  Sparkles,
   MessageSquareText,
 } from "lucide-react";
 
@@ -23,7 +14,6 @@ import { BottomSheetSelect } from "@/components/mobile/BottomSheetSelect";
 import { ItemPickerSheet } from "@/components/mobile/ItemPickerSheet";
 import { QtyStepper } from "@/components/mobile/QtyStepper";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,8 +34,8 @@ import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 // Thread D action
 import { discardLost } from "@/actions/transactions";
 import { DiscardLostSchema } from "@/actions/transactions/schemas.client";
+import { useProperty } from "@/components/PropertyProvider";
 
-const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_DISCARD_ITEM_FREQ = "laundry:itemFreq:discard";
 
 type SourceKind = "DAMAGED_BIN" | "CLEAN_STORE" | "SOILED_STORE" | "REWASH_BIN";
@@ -69,10 +59,10 @@ function writeJson(key: string, value: unknown) {
 }
 
 const SOURCE_LABEL: Record<SourceKind, string> = {
-  DAMAGED_BIN: "Damaged Bin",
-  REWASH_BIN: "Rewash Bin",
-  SOILED_STORE: "Soiled Store",
-  CLEAN_STORE: "Clean Store",
+  DAMAGED_BIN: "Damaged",
+  REWASH_BIN: "Wash again",
+  SOILED_STORE: "To be washed",
+  CLEAN_STORE: "Ready to use",
 };
 
 const REASON_CHIPS = [
@@ -86,7 +76,7 @@ const REASON_CHIPS = [
 
 export default function DiscardPage() {
   const boot = useBootstrap();
-  const reduceMotion = useReducedMotion();
+  const { propertyId: appPropertyId, selectProperty } = useProperty();
 
   const [propertyId, setPropertyId] = React.useState<string | null>(null);
   const [source, setSource] = React.useState<SourceKind>("DAMAGED_BIN");
@@ -100,14 +90,14 @@ export default function DiscardPage() {
 
   React.useEffect(() => {
     if (!boot.data?.properties?.length) return;
-    const saved = localStorage.getItem(LS_PROPERTY);
+    const saved = appPropertyId;
     const first = boot.data.properties[0].id;
     setPropertyId(
       saved && boot.data.properties.some((p) => p.id === saved) ? saved : first
     );
-  }, [boot.data?.properties]);
+  }, [boot.data?.properties, appPropertyId]);
 
-  const items = boot.data?.items ?? [];
+  const items = React.useMemo(() => boot.data?.items ?? [], [boot.data?.items]);
 
   const selectedIds = React.useMemo(
     () => new Set(lines.map((l) => l.linenItemId)),
@@ -187,7 +177,7 @@ export default function DiscardPage() {
 
   const onSubmit = async () => {
     if (!propertyId) return;
-    localStorage.setItem(LS_PROPERTY, propertyId);
+    selectProperty(propertyId);
 
     const payload = {
       propertyId,
@@ -217,7 +207,7 @@ export default function DiscardPage() {
   const headerRight = (
     <Badge
       variant="secondary"
-      className="rounded-2xl border border-violet-200/60 bg-white/60 text-xs text-violet-700 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40 dark:text-violet-200"
+      className="rounded-full bg-damaged-soft text-xs text-damaged"
     >
       <ShieldAlert className="mr-1 h-4 w-4" />
       Discard
@@ -225,13 +215,17 @@ export default function DiscardPage() {
   );
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-      <PageHeader title="Discard / Damage" right={headerRight as any} />
+    <div className="min-h-dvh bg-background">
+      <PageHeader
+        title="Discard / Damage"
+        subtitle="Remove linen that is thrown away, lost, or damaged"
+        right={headerRight as any}
+      />
 
-      <main className="mx-auto w-full max-w-md space-y-4 px-3 pb-28 pt-4">
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pb-28 pt-4">
         {/* Property */}
         {boot.loading ? (
-          <Skeleton className="h-16 w-full rounded-3xl" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
         ) : (
           <BottomSheetSelect
             label="Property"
@@ -249,180 +243,169 @@ export default function DiscardPage() {
 
         {/* Source (big segmented control, no sheet needed) */}
         {!done && (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">Source</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Where are you removing linen from?
-                  </div>
+          <section className="surface rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Source</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Where are you removing linen from?
                 </div>
-                <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                  {SOURCE_LABEL[source]}
-                </Badge>
               </div>
+              <Badge className="rounded-full bg-damaged text-primary-foreground">
+                {SOURCE_LABEL[source]}
+              </Badge>
+            </div>
 
-              <Separator className="my-3 opacity-60" />
+            <Separator className="my-3" />
 
-              <Tabs
-                value={source}
-                onValueChange={(v) => setSource(v as SourceKind)}
-              >
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0">
-                  <TabsTrigger
-                    value="DAMAGED_BIN"
-                    className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 text-sm backdrop-blur-[2px] data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:border-violet-500/15 dark:bg-zinc-950/40 dark:data-[state=active]:bg-violet-500"
-                  >
-                    Damaged
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="REWASH_BIN"
-                    className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 text-sm backdrop-blur-[2px] data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:border-violet-500/15 dark:bg-zinc-950/40 dark:data-[state=active]:bg-violet-500"
-                  >
-                    Rewash
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="SOILED_STORE"
-                    className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 text-sm backdrop-blur-[2px] data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:border-violet-500/15 dark:bg-zinc-950/40 dark:data-[state=active]:bg-violet-500"
-                  >
-                    Soiled
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="CLEAN_STORE"
-                    className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 text-sm backdrop-blur-[2px] data-[state=active]:bg-violet-600 data-[state=active]:text-white dark:border-violet-500/15 dark:bg-zinc-950/40 dark:data-[state=active]:bg-violet-500"
-                  >
-                    Clean
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </CardContent>
-          </Card>
+            <Tabs
+              value={source}
+              onValueChange={(v) => setSource(v as SourceKind)}
+            >
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0">
+                <TabsTrigger
+                  value="DAMAGED_BIN"
+                  className="h-12 rounded-xl border bg-card text-sm data-[state=active]:border-transparent data-[state=active]:bg-damaged data-[state=active]:text-primary-foreground"
+                >
+                  Damaged
+                </TabsTrigger>
+                <TabsTrigger
+                  value="REWASH_BIN"
+                  className="h-12 rounded-xl border bg-card text-sm data-[state=active]:border-transparent data-[state=active]:bg-damaged data-[state=active]:text-primary-foreground"
+                >
+                  Wash again
+                </TabsTrigger>
+                <TabsTrigger
+                  value="SOILED_STORE"
+                  className="h-12 rounded-xl border bg-card text-sm data-[state=active]:border-transparent data-[state=active]:bg-damaged data-[state=active]:text-primary-foreground"
+                >
+                  To be washed
+                </TabsTrigger>
+                <TabsTrigger
+                  value="CLEAN_STORE"
+                  className="h-12 rounded-xl border bg-card text-sm data-[state=active]:border-transparent data-[state=active]:bg-damaged data-[state=active]:text-primary-foreground"
+                >
+                  Ready to use
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </section>
         )}
 
         {/* Reason (chips + optional note sheet) */}
         {!done && (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">Reason (optional)</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Tap a chip. Add note only if needed.
-                  </div>
+          <section className="surface rounded-2xl p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Reason (optional)</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Tap a chip. Add note only if needed.
                 </div>
+              </div>
 
-                <Sheet open={noteSheetOpen} onOpenChange={setNoteSheetOpen}>
-                  <SheetTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                    >
-                      <MessageSquareText className="mr-2 h-4 w-4" />
-                      Note
-                    </Button>
-                  </SheetTrigger>
+              <Sheet open={noteSheetOpen} onOpenChange={setNoteSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button type="button" variant="secondary" size="lg">
+                    <MessageSquareText className="h-4 w-4" />
+                    Note
+                  </Button>
+                </SheetTrigger>
 
-                  <SheetContent
-                    side="bottom"
-                    className="h-[60vh] rounded-t-3xl border-violet-200/60 bg-background/80 p-0 backdrop-blur-[2px] dark:border-violet-500/15"
-                  >
-                    <div className="flex h-full flex-col">
-                      <SheetHeader className="px-4 pt-4">
-                        <SheetTitle className="text-base">
-                          Reason note
-                        </SheetTitle>
-                      </SheetHeader>
+                <SheetContent
+                  side="bottom"
+                  className="h-[60vh] rounded-t-3xl bg-background p-0"
+                >
+                  <div className="flex h-full flex-col">
+                    <SheetHeader className="px-4 pt-4">
+                      <SheetTitle className="text-base">
+                        Reason note
+                      </SheetTitle>
+                    </SheetHeader>
 
-                      <div className="px-4 pb-3 pt-2 text-sm text-muted-foreground">
-                        Type only if you really need a note.
-                      </div>
+                    <div className="px-4 pb-3 pt-2 text-sm text-muted-foreground">
+                      Type only if you really need a note.
+                    </div>
 
-                      <Separator className="opacity-60" />
+                    <Separator />
 
-                      <div className="flex-1 p-4 space-y-3">
-                        <Textarea
-                          value={reason}
-                          onChange={(e) => setReason(e.target.value)}
-                          placeholder="e.g. torn, stained, missing..."
-                          className="min-h-[140px] rounded-2xl border-violet-200/60 bg-white/70 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                        />
+                    <div className="flex-1 space-y-3 p-4">
+                      <Textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="e.g. torn, stained, missing..."
+                        className="min-h-[140px] rounded-xl"
+                      />
 
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="h-12 flex-1 rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                            onClick={() => {
-                              setReason("");
-                              setNoteSheetOpen(false);
-                            }}
-                          >
-                            Clear
-                          </Button>
-                          <Button
-                            type="button"
-                            className="h-12 flex-1 rounded-2xl bg-violet-600 text-white hover:bg-violet-600/90 dark:bg-violet-500 dark:hover:bg-violet-500/90"
-                            onClick={() => setNoteSheetOpen(false)}
-                          >
-                            Done
-                          </Button>
-                        </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="lg"
+                          className="flex-1"
+                          onClick={() => {
+                            setReason("");
+                            setNoteSheetOpen(false);
+                          }}
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          type="button"
+                          size="lg"
+                          className="flex-1"
+                          onClick={() => setNoteSheetOpen(false)}
+                        >
+                          Done
+                        </Button>
                       </div>
                     </div>
-                  </SheetContent>
-                </Sheet>
-              </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
 
-              <Separator className="my-3 opacity-60" />
+            <Separator className="my-3" />
 
-              <div className="flex flex-wrap gap-2">
-                {REASON_CHIPS.map((chip) => {
-                  const active =
-                    reason.trim().toLowerCase() === chip.toLowerCase();
-                  return (
-                    <Button
-                      key={chip}
-                      type="button"
-                      variant="secondary"
-                      className={[
-                        "h-11 rounded-2xl px-3 text-sm font-semibold",
-                        "border border-violet-200/60 bg-white/60 backdrop-blur-[2px]",
-                        "dark:border-violet-500/15 dark:bg-zinc-950/40",
-                        active
-                          ? "bg-violet-600 text-white hover:bg-violet-600/90 dark:bg-violet-500 dark:hover:bg-violet-500/90"
-                          : "hover:bg-violet-600/10 dark:hover:bg-violet-500/10",
-                      ].join(" ")}
-                      onClick={() => setReason(active ? "" : chip)}
-                    >
-                      {chip}
-                    </Button>
-                  );
-                })}
-
-                {reason.trim() ? (
+            <div className="flex flex-wrap gap-2">
+              {REASON_CHIPS.map((chip) => {
+                const active =
+                  reason.trim().toLowerCase() === chip.toLowerCase();
+                return (
                   <Button
+                    key={chip}
                     type="button"
-                    variant="ghost"
-                    className="h-11 rounded-2xl px-3 text-muted-foreground hover:text-foreground"
-                    onClick={() => setReason("")}
+                    variant={active ? "default" : "secondary"}
+                    size="sm"
+                    className="h-11 rounded-full px-3"
+                    onClick={() => setReason(active ? "" : chip)}
                   >
-                    Clear
+                    {chip}
                   </Button>
-                ) : null}
-              </div>
+                );
+              })}
 
               {reason.trim() ? (
-                <div className="mt-3 text-sm text-muted-foreground">
-                  Selected:{" "}
-                  <span className="font-medium text-foreground">
-                    {reason.trim()}
-                  </span>
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-11 rounded-full px-3 text-muted-foreground hover:text-foreground"
+                  onClick={() => setReason("")}
+                >
+                  Clear
+                </Button>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+
+            {reason.trim() ? (
+              <div className="mt-3 text-sm text-muted-foreground">
+                Selected:{" "}
+                <span className="font-medium text-foreground">
+                  {reason.trim()}
+                </span>
+              </div>
+            ) : null}
+          </section>
         )}
 
         {/* Add items */}
@@ -443,123 +426,89 @@ export default function DiscardPage() {
 
         {/* Done state */}
         {done ? (
-          <LazyMotion features={domAnimation}>
-            <m.div
-              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-            >
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        Discard saved
-                        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-300" />
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Start a new discard when ready.
-                      </div>
-                    </div>
-                  </div>
+          <section className="surface animate-fade-up rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-damaged-soft text-damaged">
+                <ShieldAlert className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-base font-semibold">Discard saved</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Start a new discard when ready.
+                </div>
+              </div>
+            </div>
 
-                  <Button
-                    className="mt-4 h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 dark:bg-violet-500 dark:hover:bg-violet-500/90"
-                    onClick={onNew}
-                  >
-                    New Discard
-                  </Button>
-                </CardContent>
-              </Card>
-            </m.div>
-          </LazyMotion>
+            <Button size="xl" className="mt-4 w-full" onClick={onNew}>
+              New discard
+            </Button>
+          </section>
         ) : (
           <>
             {/* Lines */}
             {lines.length === 0 ? (
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <AlertTriangle className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">No items yet</div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Tap{" "}
-                        <span className="font-medium text-foreground">
-                          Add Items
-                        </span>{" "}
-                        to start.
-                      </div>
+              <section className="surface rounded-2xl p-5">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                    <AlertTriangle className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">No items yet</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Tap{" "}
+                      <span className="font-medium text-foreground">
+                        Add Items
+                      </span>{" "}
+                      to start.
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <LazyMotion features={domAnimation}>
-                <div className="space-y-3">
-                  <AnimatePresence initial={false}>
-                    {lines.map((l) => {
-                      const item = items.find((i) => i.id === l.linenItemId);
-
-                      return (
-                        <m.div
-                          key={l.linenItemId}
-                          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                          animate={
-                            reduceMotion ? undefined : { opacity: 1, y: 0 }
-                          }
-                          exit={
-                            reduceMotion ? undefined : { opacity: 0, y: -10 }
-                          }
-                          transition={{ duration: 0.16 }}
-                        >
-                          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                            <CardContent className="p-4">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="truncate text-base font-semibold leading-tight">
-                                    {item?.name ?? "Item"}
-                                  </div>
-                                  <div className="mt-1 text-sm text-muted-foreground">
-                                    Qty to discard
-                                    {item?.unit ? (
-                                      <span className="ml-1">
-                                        • {item.unit}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <QtyStepper
-                                    value={l.qty}
-                                    onChange={(v) => setQty(l.linenItemId, v)}
-                                  />
-
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className="h-12 w-12 rounded-2xl text-muted-foreground hover:text-foreground"
-                                    onClick={() => onRemoveItem(l.linenItemId)}
-                                    aria-label="Remove item"
-                                  >
-                                    <Trash2 className="h-5 w-5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </m.div>
-                      );
-                    })}
-                  </AnimatePresence>
                 </div>
-              </LazyMotion>
+              </section>
+            ) : (
+              <div className="space-y-3">
+                {lines.map((l) => {
+                  const item = items.find((i) => i.id === l.linenItemId);
+
+                  return (
+                    <section
+                      key={l.linenItemId}
+                      className="surface animate-fade-up rounded-2xl p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold leading-tight">
+                            {item?.name ?? "Item"}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            Qty to discard
+                            {item?.unit ? (
+                              <span className="ml-1">&middot; {item.unit}</span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <QtyStepper
+                            value={l.qty}
+                            onChange={(v) => setQty(l.linenItemId, v)}
+                          />
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-lg"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => onRemoveItem(l.linenItemId)}
+                            aria-label="Remove item"
+                          >
+                            <Trash2 className="size-5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             )}
           </>
         )}
@@ -570,27 +519,21 @@ export default function DiscardPage() {
         <StickyBar>
           <div className="flex items-center justify-between pb-2 text-sm">
             <div className="text-muted-foreground">Total</div>
-            <div className="font-semibold">{totalQty}</div>
+            <div className="font-semibold" data-numeric>
+              {totalQty}
+            </div>
           </div>
 
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-              >
+              <Badge variant="secondary" className="rounded-full">
                 {totalLines} items
               </Badge>
-              <Badge
-                variant="secondary"
-                className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-              >
+              <Badge variant="secondary" className="rounded-full">
                 Source: {SOURCE_LABEL[source]}
               </Badge>
               {isSubmitting ? (
-                <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                  Saving…
-                </Badge>
+                <Badge className="rounded-full">Saving&hellip;</Badge>
               ) : null}
             </div>
 
@@ -608,12 +551,13 @@ export default function DiscardPage() {
           </div>
 
           <Button
-            className="h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 disabled:bg-violet-600/40 dark:bg-violet-500 dark:hover:bg-violet-500/90 dark:disabled:bg-violet-500/40"
+            size="xl"
+            className="w-full"
             disabled={!canSubmit}
             onClick={onSubmit}
           >
             <ShieldAlert className="mr-2 h-5 w-5" />
-            Submit Discard
+            Submit discard
           </Button>
         </StickyBar>
       )}

@@ -46,7 +46,6 @@ export async function getBootstrap(): Promise<{
     orderBy: { name: "asc" },
   });
 
-  console.log("items", items, vendors, properties);
 
   return { properties, vendors, items };
 }

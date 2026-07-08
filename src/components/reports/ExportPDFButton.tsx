@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { FileDown, Loader2 } from "lucide-react";
 import { useState } from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import type { CalendarReportPDFProps } from "@/components/reports/CalendarReportHTML";
 import { TxnType } from "@/generated/prisma";
 
@@ -80,20 +80,15 @@ export function ExportPDFButton({
         <Button
             onClick={handleExport}
             disabled={disabled || isGenerating || !rows.length}
-            variant="outline"
-            className="gap-2"
+            variant="secondary"
+            size="lg"
         >
             {isGenerating ? (
-                <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                </>
+                <Loader2 className="size-4 animate-spin" />
             ) : (
-                <>
-                    <FileDown className="h-4 w-4" />
-                    Export PDF
-                </>
+                <FileDown className="size-4" />
             )}
+            {isGenerating ? "Generating…" : "Export PDF"}
         </Button>
     );
 }

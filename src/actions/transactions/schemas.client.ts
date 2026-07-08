@@ -30,12 +30,12 @@ export const CreateProcurementSchema = z.object({
     .min(1),
 });
 
+// Staff flows are always recorded at the moment they happen — no backdating.
 export const DispatchToLaundrySchema = z.object({
   propertyId: z.string().min(1),
   vendorId: z.string().min(1),
   reference: z.string().trim().min(1).optional(),
   note: z.string().trim().optional(),
-  occurredAt: z.coerce.date().optional(),
   idempotencyKey: z.string().trim().min(8).optional(),
   lines: z
     .array(
@@ -65,7 +65,6 @@ export const ReceiveFromLaundrySchema = z.object({
   vendorId: z.string().min(1),
   reference: z.string().trim().min(1).optional(),
   note: z.string().trim().optional(),
-  occurredAt: z.coerce.date().optional(),
   idempotencyKey: z.string().trim().min(8).optional(),
   lines: z.array(ReceiveLineSchema).min(1),
 });
@@ -75,7 +74,6 @@ export const ResendRewashSchema = z.object({
   vendorId: z.string().min(1),
   reference: z.string().trim().min(1).optional(),
   note: z.string().trim().optional(),
-  occurredAt: z.coerce.date().optional(),
   idempotencyKey: z.string().trim().min(8).optional(),
   lines: z
     .array(

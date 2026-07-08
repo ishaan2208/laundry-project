@@ -38,9 +38,7 @@ function scopeLabel(v: boolean, d: boolean) {
 export default async function StockAuditHistoryPage({
   searchParams,
 }: {
-  searchParams:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = (await searchParams) as Record<
     string,
@@ -66,7 +64,7 @@ export default async function StockAuditHistoryPage({
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-lg font-semibold">
-          <History className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+          <History className="h-5 w-5 text-primary" />
           Audit-to-audit quantity changes
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -148,7 +146,7 @@ export default async function StockAuditHistoryPage({
                         key={r.id}
                         className={cn(
                           "border-b last:border-0 hover:bg-muted/30",
-                          active && "bg-violet-500/10"
+                          active && "bg-accent"
                         )}
                       >
                         <td className="px-3 py-2">
@@ -249,9 +247,8 @@ export default async function StockAuditHistoryPage({
                 <div
                   className={cn(
                     "text-2xl font-semibold tabular-nums",
-                    (detail.summary.netPiecesDelta ?? 0) > 0 &&
-                      "text-emerald-700 dark:text-emerald-400",
-                    (detail.summary.netPiecesDelta ?? 0) < 0 && "text-destructive"
+                    (detail.summary.netPiecesDelta ?? 0) > 0 && "text-clean",
+                    (detail.summary.netPiecesDelta ?? 0) < 0 && "text-damaged"
                   )}
                 >
                   {detail.summary.netPiecesDelta !== null
@@ -302,12 +299,8 @@ export default async function StockAuditHistoryPage({
                           className={cn(
                             "px-3 py-2 text-right font-mono tabular-nums font-medium",
                             l.delta === null && "text-muted-foreground",
-                            l.delta !== null &&
-                              l.delta > 0 &&
-                              "text-emerald-700 dark:text-emerald-400",
-                            l.delta !== null &&
-                              l.delta < 0 &&
-                              "text-destructive"
+                            l.delta !== null && l.delta > 0 && "text-clean",
+                            l.delta !== null && l.delta < 0 && "text-damaged"
                           )}
                         >
                           {l.delta !== null

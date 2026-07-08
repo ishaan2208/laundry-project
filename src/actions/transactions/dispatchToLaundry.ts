@@ -1,6 +1,5 @@
 "use server";
 
-import { z } from "zod";
 import {
   LinenCondition,
   LocationKind,
@@ -68,7 +67,6 @@ export async function dispatchToLaundry(input: unknown): Promise<ActionResult> {
       vendorId: parsed.data.vendorId,
       reference: parsed.data.reference,
       note: parsed.data.note,
-      occurredAt: parsed.data.occurredAt,
       createdById: user.id,
       idempotencyKey: parsed.data.idempotencyKey,
       entries,

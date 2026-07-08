@@ -6,6 +6,7 @@ import { LinenCondition, LocationKind } from "@/generated/prisma";
 
 export type PendingItemRow = {
   linenItemId: string;
+  linenItemName: string;
   pendingSoiled: number;
   pendingRewash: number;
   totalPending: number;
@@ -56,12 +57,25 @@ export async function getPendingItemsForVendor(input: {
     map.set(id, cur);
   }
 
+  const itemIds = [...map.keys()];
+  const names = itemIds.length
+    ? new Map(
+        (
+          await prisma.linenItem.findMany({
+            where: { id: { in: itemIds } },
+            select: { id: true, name: true },
+          })
+        ).map((i) => [i.id, i.name] as const)
+      )
+    : new Map<string, string>();
+
   const rows: PendingItemRow[] = Array.from(map.entries())
     .map(([linenItemId, v]) => {
       const pendingSoiled = Math.max(0, Math.round(v.soiled));
       const pendingRewash = Math.max(0, Math.round(v.rewash));
       return {
         linenItemId,
+        linenItemName: names.get(linenItemId) ?? "Item",
         pendingSoiled,
         pendingRewash,
         totalPending: pendingSoiled + pendingRewash,

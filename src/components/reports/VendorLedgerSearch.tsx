@@ -3,14 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { BottomSheetSelect } from "@/components/mobile/BottomSheetSelect";
 import { Search } from "lucide-react";
 
 export type VendorLedgerSearchProps = {
@@ -55,63 +48,50 @@ export function VendorLedgerSearch({
   const canSearch = Boolean(propertyId && vendorId && linenItemId);
 
   return (
-    <div className="space-y-4 rounded-2xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Laundry vendor</Label>
-          <Select
-            value={vendorId || undefined}
-            onValueChange={setVendorId}
-            disabled={!propertyId || vendors.length === 0}
-          >
-            <SelectTrigger className="rounded-2xl">
-              <SelectValue placeholder="Select vendor" />
-            </SelectTrigger>
-            <SelectContent>
-              {vendors.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Linen item</Label>
-          <Select
-            value={linenItemId || undefined}
-            onValueChange={setLinenItemId}
-          >
-            <SelectTrigger className="rounded-2xl">
-              <SelectValue placeholder="Select item" />
-            </SelectTrigger>
-            <SelectContent>
-              {linenItems.map((it) => (
-                <SelectItem key={it.id} value={it.id}>
-                  {it.name}
-                  {it.sku ? ` · ${it.sku}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <BottomSheetSelect
+          label="Laundry"
+          value={vendorId}
+          onChange={setVendorId}
+          options={vendors.map((v) => ({ value: v.id, label: v.name }))}
+          placeholder="Choose laundry"
+          hint="Which laundry vendor?"
+          disabled={!propertyId || vendors.length === 0}
+          leadingIcon="truck"
+        />
+        <BottomSheetSelect
+          label="Linen item"
+          value={linenItemId}
+          onChange={setLinenItemId}
+          options={linenItems.map((it) => ({
+            value: it.id,
+            label: it.name,
+            subtitle: it.sku ?? undefined,
+          }))}
+          placeholder="Choose item"
+          hint="Which linen item?"
+        />
       </div>
+
       <Button
         type="button"
-        className="w-full rounded-2xl sm:w-auto"
+        size="xl"
+        className="w-full"
         disabled={!canSearch}
         onClick={apply}
       >
-        <Search className="mr-2 h-4 w-4" />
+        <Search className="size-5" />
         Show ledger
       </Button>
+
       {!propertyId ? (
-        <p className="text-xs text-muted-foreground">
-          Choose a property above first.
+        <p className="text-sm text-muted-foreground">
+          Choose a hotel above first.
         </p>
       ) : vendors.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No vendor laundry locations for this property yet.
+        <p className="text-sm text-muted-foreground">
+          No laundry vendors set up for this hotel yet.
         </p>
       ) : null}
     </div>

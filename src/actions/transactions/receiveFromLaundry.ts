@@ -123,7 +123,6 @@ export async function receiveFromLaundry(
       vendorId: parsed.data.vendorId,
       reference: parsed.data.reference,
       note: parsed.data.note,
-      occurredAt: parsed.data.occurredAt,
       createdById: user.id,
       idempotencyKey: parsed.data.idempotencyKey,
       strictStock: true, // vendor soiled debits must not exceed pending

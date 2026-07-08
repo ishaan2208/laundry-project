@@ -1,62 +1,91 @@
-// src/components/mobile/BottomNav.tsx
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  Home,
-  Truck,
-  PackageCheck,
-  ClipboardList,
-  Layers,
-  ScrollText,
-} from "lucide-react";
+import { useProperty } from "@/components/PropertyProvider";
+import { Home, Layers, BookOpen, Settings2 } from "lucide-react";
 
-const items = [
-  { href: "/app/dispatch", label: "Dispatch", icon: Truck },
-  { href: "/app/receive", label: "Receive", icon: PackageCheck },
-  { href: "/app", label: "Home", icon: Home },
-  { href: "/app/stock", label: "Stock", icon: Layers },
-  { href: "/app/vendor-ledger", label: "Ledger", icon: ScrollText },
-  { href: "/app/txns", label: "Log", icon: ClipboardList },
+const tabs = [
+  { href: "/app", label: "Home", icon: Home, exact: true },
+  { href: "/app/stock", label: "Linen", icon: Layers, exact: false },
+  { href: "/app/txns", label: "Register", icon: BookOpen, exact: false },
 ];
 
-export default function BottomNav() {
+/** Focused task flows hide the tab bar so staff finish one job at a time. */
+const immersiveRoutes = [
+  "/app/dispatch",
+  "/app/receive",
+  "/app/stock/physical-count",
+];
+
+export default function BottomNav({ isAdmin }: { isAdmin?: boolean }) {
   const path = usePathname();
+
+  // Tabs carry the app-wide hotel so multi-hotel users keep their context.
+  const { propertyId } = useProperty();
+
+  if (immersiveRoutes.some((r) => path.startsWith(r))) return null;
+
+  const items = isAdmin
+    ? [...tabs, { href: "/admin", label: "Admin", icon: Settings2, exact: false }]
+    : tabs;
+
+  const hrefFor = (base: string) =>
+    base === "/app" || base === "/admin" || !propertyId
+      ? base
+      : `${base}?propertyId=${encodeURIComponent(propertyId)}`;
 
   return (
     <>
-      {/* Spacer so page content isn't covered by the fixed bottom nav. Matches nav height + safe-area inset. */}
+      {/* Spacer so content never hides behind the fixed bar. */}
       <div
-        style={{ height: "calc(64px + env(safe-area-inset-bottom))" }}
+        style={{ height: "calc(68px + env(safe-area-inset-bottom))" }}
         aria-hidden
       />
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="Main"
+        className="fixed inset-x-0 bottom-0 z-(--z-nav) border-t bg-background pb-safe"
       >
         <div
-          className="mx-auto max-w-lg grid grid-cols-6 px-1"
-          style={{ height: 64 }}
+          className="mx-auto grid max-w-md px-2"
+          style={{
+            height: 68,
+            gridTemplateColumns: `repeat(${items.length}, 1fr)`,
+          }}
         >
-          {items.map(({ href, label, icon: Icon }) => {
-            const active =
-              href === "/app"
-                ? path === "/app" || path === "/app/"
-                : path.startsWith(href);
+          {items.map(({ href, label, icon: Icon, exact }) => {
+            const active = exact
+              ? path === href || path === `${href}/`
+              : path.startsWith(href);
             return (
               <Link
                 key={href}
-                href={href}
+                href={hrefFor(href)}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "py-2 flex flex-col items-center justify-center gap-0.5 text-[10px] leading-tight sm:text-xs",
-                  active ? "text-foreground" : "text-muted-foreground"
+                  "press-soft flex flex-col items-center justify-center gap-1",
+                  active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className={cn("h-5 w-5", active && "scale-105")} />
-                <span>{label}</span>
+                <span
+                  className={cn(
+                    "grid h-8 w-14 place-items-center rounded-full transition-colors duration-200",
+                    active && "bg-accent"
+                  )}
+                >
+                  <Icon className="size-5.5" strokeWidth={active ? 2.4 : 2} />
+                </span>
+                <span
+                  className={cn(
+                    "text-xs leading-none",
+                    active ? "font-bold" : "font-medium"
+                  )}
+                >
+                  {label}
+                </span>
               </Link>
             );
           })}

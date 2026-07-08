@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { exportStockAuditDeltaCsv } from "@/actions/reports/exportStockAuditDeltaCsv";
 
 export function StockAuditDeltaCsvButton(props: { snapshotId: string }) {
@@ -26,22 +26,19 @@ export function StockAuditDeltaCsvButton(props: { snapshotId: string }) {
       URL.revokeObjectURL(url);
       toast.success("Download started.");
     } catch {
-      toast.error("Export failed.");
+      toast.error("Could not export this.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="rounded-full gap-1.5"
-      disabled={busy}
-      onClick={onClick}
-    >
-      <Download className="h-4 w-4" />
+    <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onClick}>
+      {busy ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Download className="size-4" />
+      )}
       {busy ? "Preparing…" : "Download CSV"}
     </Button>
   );

@@ -1,7 +1,6 @@
 // src/app/(admin)/settings/locations/page.tsx
 import { prisma } from "@/lib/db";
 import LocationsClient from "./ui/LocationsClient";
-import PropertySelectorClient from "./PropertySelectorClient";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +35,10 @@ export default async function LocationsPage({
     : [];
 
   return (
-    <div>
-      <LocationsClient
-        properties={properties}
-        propertyId={propertyId}
-        initial={locations}
-      />
-    </div>
+    <LocationsClient
+      properties={properties}
+      propertyId={propertyId}
+      initial={locations}
+    />
   );
 }

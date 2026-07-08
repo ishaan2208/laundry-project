@@ -1,14 +1,18 @@
 import { prisma } from "@/lib/db";
 import { isAdmin, requireUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { TxnType, UserRole } from "@/generated/prisma";
 import { getTransactions } from "@/actions/reports/getTransactions";
 import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
+import PropertyPicker from "@/components/reports/PropertyPicker";
+import { PageHeader } from "@/components/mobile/PageHeader";
+import { HelpNote } from "@/components/mobile/HelpNote";
+import { RememberProperty } from "@/components/RememberProperty";
+import { resolvePropertyId } from "@/lib/propertyPref.server";
 import { TxnListItemExpandable } from "@/components/reports/TxnListItemExpandable";
+import { txnLabel } from "@/lib/txnLabels";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 import {
   format,
@@ -18,20 +22,9 @@ import {
   startOfDay,
   compareDesc,
 } from "date-fns";
-import {
-  ListChecks,
-  SlidersHorizontal,
-  ArrowDown,
-  Building2,
-  Truck,
-  Tag,
-  CalendarRange,
-  CalendarDays,
-} from "lucide-react";
+import { ArrowDown } from "lucide-react";
 
-function humanType(t: TxnType) {
-  return t.replaceAll("_", " ");
-}
+const BASE = "/app/txns";
 
 function dateKey(d: Date) {
   return format(d, "yyyy-MM-dd");
@@ -39,17 +32,23 @@ function dateKey(d: Date) {
 
 function labelForDateKey(key: string) {
   const d = parse(key, "yyyy-MM-dd", new Date());
-  if (isToday(d)) return `Today · ${format(d, "dd MMM")}`;
-  if (isYesterday(d)) return `Yesterday · ${format(d, "dd MMM")}`;
-  return format(d, "dd MMM");
+  if (isToday(d)) return `Today, ${format(d, "d MMM")}`;
+  if (isYesterday(d)) return `Yesterday, ${format(d, "d MMM")}`;
+  return format(d, "EEE, d MMM");
 }
+
+/** Quick views staff actually ask for; everything else lives in Filters. */
+const quickViews: { key: string; label: string; type?: TxnType }[] = [
+  { key: "all", label: "All" },
+  { key: "sent", label: "Sent", type: TxnType.DISPATCH_TO_LAUNDRY },
+  { key: "received", label: "Received", type: TxnType.RECEIVE_FROM_LAUNDRY },
+  { key: "removed", label: "Thrown away", type: TxnType.DISCARD_LOST },
+];
 
 export default async function TxnsPage({
   searchParams,
 }: {
-  searchParams:
-  | Promise<Record<string, string | string[] | undefined>>
-  | Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
   const admin = isAdmin(user);
@@ -59,7 +58,7 @@ export default async function TxnsPage({
     string | string[] | undefined
   >;
 
-  const propertyId =
+  const propertyIdParam =
     typeof sp.propertyId === "string" ? sp.propertyId : undefined;
   const vendorId = typeof sp.vendorId === "string" ? sp.vendorId : undefined;
   const type = typeof sp.type === "string" ? (sp.type as TxnType) : undefined;
@@ -72,28 +71,25 @@ export default async function TxnsPage({
   const properties =
     user.role === UserRole.ADMIN
       ? await prisma.property.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : await prisma.userProperty
+          .findMany({
+            where: { userId: user.id },
+            select: { property: { select: { id: true, name: true } } },
+          })
+          .then((rows) => rows.map((r) => r.property));
+
+  const propertyId = await resolvePropertyId(propertyIdParam, properties);
+
+  const vendorsForFilter = propertyId
+    ? await prisma.vendor.findMany({
         where: { isActive: true },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       })
-      : await prisma.userProperty
-        .findMany({
-          where: { userId: user.id },
-          select: { property: { select: { id: true, name: true } } },
-        })
-        .then((rows) => rows.map((r) => r.property));
-
-  if (!propertyId && properties.length === 1) {
-    redirect(`/app/txns?propertyId=${properties[0].id}`);
-  }
-
-  // Only used for filter dropdown. Names for list are fetched later by ids.
-  const vendorsForFilter = propertyId
-    ? await prisma.vendor.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    })
     : [];
 
   const res = await getTransactions({
@@ -110,83 +106,67 @@ export default async function TxnsPage({
 
   if (!res.ok) {
     return (
-      <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-        <div className="mx-auto w-full max-w-2xl p-3">
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 text-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            {res.message ?? "Failed to load."}
-          </Card>
+      <div className="min-h-dvh bg-background">
+        <PageHeader title="Register" back={false} />
+        <div className="mx-auto w-full max-w-md px-4 pt-4">
+          <div className="surface rounded-2xl p-5 text-center text-sm text-muted-foreground">
+            {res.message ?? "Could not load the register."}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Build vendorName map even when propertyId is not selected
   const vendorIds = Array.from(
     new Set(res.rows.map((r: any) => r.vendorId).filter(Boolean))
   ) as string[];
 
   const vendorNameMap = vendorIds.length
     ? new Map(
-      (
-        await prisma.vendor.findMany({
-          where: { id: { in: vendorIds } },
-          select: { id: true, name: true },
-        })
-      ).map((v) => [v.id, v.name] as const)
-    )
+        (
+          await prisma.vendor.findMany({
+            where: { id: { in: vendorIds } },
+            select: { id: true, name: true },
+          })
+        ).map((v) => [v.id, v.name] as const)
+      )
     : new Map<string, string>();
 
   const propertyNameMap = new Map(
     properties.map((p) => [p.id, p.name] as const)
   );
 
+  const baseParams = () => {
+    const params = new URLSearchParams();
+    if (propertyId) params.set("propertyId", propertyId);
+    if (vendorId) params.set("vendorId", vendorId);
+    if (q) params.set("q", q);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (includeVoided) params.set("includeVoided", "1");
+    return params;
+  };
+
   const nextHref = res.nextCursor
     ? (() => {
-      const params = new URLSearchParams();
-      if (propertyId) params.set("propertyId", propertyId);
-      if (vendorId) params.set("vendorId", vendorId);
-      if (type) params.set("type", type);
-      if (q) params.set("q", q);
-      if (from) params.set("from", from);
-      if (to) params.set("to", to);
-      if (includeVoided) params.set("includeVoided", "1");
-      params.set("cursor", res.nextCursor);
-      return `/app/txns?${params.toString()}`;
-    })()
+        const params = baseParams();
+        if (type) params.set("type", type);
+        params.set("cursor", res.nextCursor);
+        return `${BASE}?${params.toString()}`;
+      })()
     : null;
 
-  const activePills: Array<{ icon: React.ReactNode; text: string }> = [];
-  const propName = propertyId ? propertyNameMap.get(propertyId) : undefined;
+  const viewHref = (t?: TxnType) => {
+    const params = baseParams();
+    if (t) params.set("type", t);
+    return `${BASE}?${params.toString()}`;
+  };
 
-  const vendorName = vendorId
-    ? vendorsForFilter.find((v) => v.id === vendorId)?.name ??
-    vendorNameMap.get(vendorId)
-    : undefined;
+  const activeView =
+    quickViews.find((v) => v.type === type)?.key ??
+    (type ? "other" : "all");
 
-  if (propName)
-    activePills.push({
-      icon: <Building2 className="h-4 w-4" />,
-      text: propName,
-    });
-  if (vendorName)
-    activePills.push({ icon: <Truck className="h-4 w-4" />, text: vendorName });
-  if (type)
-    activePills.push({
-      icon: <Tag className="h-4 w-4" />,
-      text: humanType(type),
-    });
-  if (from || to)
-    activePills.push({
-      icon: <CalendarRange className="h-4 w-4" />,
-      text: `${from ?? "…"} → ${to ?? "…"}`,
-    });
-  if (includeVoided)
-    activePills.push({
-      icon: <ArrowDown className="h-4 w-4" />,
-      text: "Including voided",
-    });
-
-  // --- Group rows by date (occurredAt) ---
+  // Group by day so the register reads like a diary.
   const map = new Map<string, any[]>();
   for (const r of res.rows as any[]) {
     const d =
@@ -202,119 +182,114 @@ export default async function TxnsPage({
   });
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-      <div className="mx-auto w-full max-w-2xl p-3 pb-8">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                <ListChecks className="h-5 w-5" />
-              </span>
-              <div>
-                <div className="text-lg font-semibold leading-tight">
-                  Transactions
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Searchable, filterable audit log
-                </div>
-              </div>
-            </div>
-          </div>
-
+    <div className="min-h-dvh bg-background pb-6">
+      <RememberProperty propertyId={propertyId} />
+      <PageHeader
+        title="Register"
+        subtitle="Every entry, newest first"
+        back={false}
+        right={
           <ReportFiltersSheet
-            title="Log Filters"
+            title="Register filters"
             buttonLabel="Filters"
             fields={[
               {
                 key: "propertyId",
-                label: "Property",
+                label: "Hotel",
                 type: "select",
                 options: properties.map((p) => ({
                   value: p.id,
                   label: p.name,
                 })),
-                placeholder: "All properties",
+                placeholder: "All hotels",
               },
               {
                 key: "vendorId",
-                label: "Vendor",
+                label: "Laundry",
                 type: "select",
                 options: vendorsForFilter.map((v) => ({
                   value: v.id,
                   label: v.name,
                 })),
-                placeholder: "All vendors",
+                placeholder: "All laundries",
               },
               {
                 key: "type",
-                label: "Type",
+                label: "Entry type",
                 type: "select",
                 options: Object.values(TxnType).map((t) => ({
                   value: t,
-                  label: humanType(t),
+                  label: txnLabel(t),
                 })),
                 placeholder: "All types",
               },
               { key: "from", label: "From date", type: "date" },
               { key: "to", label: "To date", type: "date" },
-              { key: "includeVoided", label: "Include voided", type: "switch" },
+              {
+                key: "includeVoided",
+                label: "Show cancelled entries",
+                type: "switch",
+              },
               {
                 key: "q",
-                label: "Search (optional)",
+                label: "Search notes",
                 type: "text",
-                placeholder: "Reference / note",
+                placeholder: "Reference or note",
               },
             ]}
           />
-        </div>
+        }
+      />
 
-        {/* Active filter pills */}
-        {activePills.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {activePills.map((p, idx) => (
-              <Badge
-                key={idx}
-                variant="secondary"
-                className="rounded-2xl border border-violet-200/60 bg-white/60 text-xs backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+        {properties.length > 1 ? (
+          <PropertyPicker
+            properties={properties}
+            selectedPropertyId={propertyId}
+          />
+        ) : null}
+
+        {/* Quick views */}
+        <nav
+          aria-label="Entry type"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {quickViews.map((v) => {
+            const active = activeView === v.key;
+            return (
+              <Link
+                key={v.key}
+                href={viewHref(v.type)}
+                aria-current={active ? "true" : undefined}
+                className={cn(
+                  "press inline-flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-semibold whitespace-nowrap",
+                  active
+                    ? "border-transparent bg-primary text-primary-foreground"
+                    : "bg-card text-foreground"
+                )}
               >
-                <span className="mr-1 inline-flex items-center text-violet-700 dark:text-violet-200">
-                  {p.icon}
-                </span>
-                {p.text}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 text-xs text-muted-foreground">
-            Tip: use{" "}
-            <span className="inline-flex items-center gap-1 font-medium text-foreground">
-              <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-            </span>{" "}
-            to narrow results.
-          </div>
-        )}
+                {v.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-        {/* Date-wise sections */}
-        <div className="mt-3 space-y-4">
-          {dateKeys.length ? (
-            dateKeys.map((k) => {
+        <HelpNote>
+          Every save becomes one entry here, newest on top. Tap an entry to
+          see what moved. Mistakes are never erased — they are cancelled and
+          corrected, so the full story stays.
+        </HelpNote>
+
+        {dateKeys.length ? (
+          <div className="space-y-5">
+            {dateKeys.map((k) => {
               const rows = map.get(k)!;
               return (
-                <section key={k} className="space-y-2 w-full">
-                  <div className="sticky top-2 z-10 w-full">
-                    <div className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white/70 px-3 py-2 text-sm shadow-sm backdrop-blur dark:bg-zinc-950/40 w-full">
-                      <CalendarDays className="h-4 w-4" />
-                      <span className="font-semibold">
-                        {labelForDateKey(k)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        • {rows.length} txn{rows.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
+                <section key={k} aria-label={labelForDateKey(k)}>
+                  <h2 className="px-1 pb-2 text-sm font-bold text-muted-foreground">
+                    {labelForDateKey(k)}
+                  </h2>
+                  <div className="space-y-2">
                     {rows.map((r: any) => (
                       <TxnListItemExpandable
                         key={r.id}
@@ -336,30 +311,27 @@ export default async function TxnsPage({
                   </div>
                 </section>
               );
-            })
-          ) : (
-            <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm text-muted-foreground backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-              No transactions for current filters.
-            </Card>
-          )}
-        </div>
-
-        {/* Load more */}
-        {nextHref ? (
-          <div className="mt-4">
-            <Button
-              asChild
-              variant="secondary"
-              className="h-14 w-full rounded-2xl border border-violet-200/60 bg-white/60 text-base font-semibold backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
-            >
-              <Link href={nextHref}>
-                <ArrowDown className="mr-2 h-5 w-5" />
-                Load more
-              </Link>
-            </Button>
+            })}
           </div>
+        ) : (
+          <div className="surface rounded-2xl p-6 text-center">
+            <p className="text-base font-semibold">Nothing here yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Entries appear here the moment anyone sends, receives, or counts
+              linen.
+            </p>
+          </div>
+        )}
+
+        {nextHref ? (
+          <Button asChild variant="secondary" size="xl" className="w-full">
+            <Link href={nextHref}>
+              <ArrowDown className="size-5" />
+              Show older entries
+            </Link>
+          </Button>
         ) : null}
-      </div>
+      </main>
     </div>
   );
 }

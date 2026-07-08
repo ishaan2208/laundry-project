@@ -1,45 +1,20 @@
-import { GlassCard } from "@/components/ui/glass-card";
-import { Badge } from "@/components/ui/badge";
-import { Building2, ShieldAlert } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export function EmptyStateNoProperty() {
   return (
-    <GlassCard className="p-5">
-      <div className="flex items-start gap-3">
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 ring-1 ring-white/15 dark:ring-white/10">
-          <ShieldAlert className="h-5 w-5 text-fuchsia-300" />
-        </div>
-
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-base font-semibold">No property assigned</div>
-            <Badge
-              variant="secondary"
-              className="border border-white/15 bg-white/50 dark:border-white/10 dark:bg-white/5"
-            >
-              Action needed
-            </Badge>
-          </div>
-
-          <div className="mt-1 text-sm text-muted-foreground">
-            Ask admin to assign a property to your account.
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              <div>
-                Once assigned, you’ll see dispatch/receive options here.
-              </div>
-            </div>
-
-            <div>
-              <LogoutButton className="h-8 rounded-2xl" />
-            </div>
-          </div>
-        </div>
+    <div className="mx-auto flex min-h-[70dvh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
+      <span className="grid size-20 place-items-center rounded-full bg-accent">
+        <Building2 className="size-9 text-accent-foreground" />
+      </span>
+      <h1 className="mt-5 text-xl font-bold">No hotel assigned yet</h1>
+      <p className="mt-2 max-w-xs text-base text-muted-foreground">
+        Ask your manager to add you to a hotel. Once that is done, your work
+        will show up here.
+      </p>
+      <div className="mt-6">
+        <LogoutButton />
       </div>
-    </GlassCard>
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Camera } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { recordStockAuditSnapshot } from "@/actions/reports/recordStockAuditSnapshot";
 
@@ -27,7 +27,7 @@ export function StockAuditRecordButton(props: {
         toast.error(r.message);
         return;
       }
-      toast.success("Snapshot saved for this IST week.");
+      toast.success("Snapshot saved for this week.");
       router.refresh();
     } catch {
       toast.error("Could not save snapshot.");
@@ -37,14 +37,12 @@ export function StockAuditRecordButton(props: {
   }
 
   return (
-    <Button
-      type="button"
-      variant="default"
-      className="h-11 rounded-2xl bg-violet-600 hover:bg-violet-600/90"
-      disabled={pending}
-      onClick={onClick}
-    >
-      <Camera className="mr-2 h-4 w-4" />
+    <Button type="button" size="lg" disabled={pending} onClick={onClick}>
+      {pending ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Camera className="size-4" />
+      )}
       {pending ? "Saving…" : "Record snapshot"}
     </Button>
   );

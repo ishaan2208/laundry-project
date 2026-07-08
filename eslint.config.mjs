@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Prisma client — machine-written, not lintable source
+    "src/generated/**",
   ]),
   // Allow explicit `any` in this project (turn off the rule from upstream)
   {

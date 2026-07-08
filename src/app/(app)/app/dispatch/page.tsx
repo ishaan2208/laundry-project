@@ -1,71 +1,48 @@
 "use client";
 
 import * as React from "react";
-import {
-  AnimatePresence,
-  LazyMotion,
-  domAnimation,
-  m,
-  useReducedMotion,
-} from "framer-motion";
-import {
-  CheckCircle2,
-  Truck,
-  Loader2,
-  PackagePlus,
-  Trash2,
-  AlertTriangle,
-  Sparkles,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { PageHeader } from "@/components/mobile/PageHeader";
+import { HelpNote } from "@/components/mobile/HelpNote";
 import { StickyBar } from "@/components/mobile/StickyBar";
 import { BottomSheetSelect } from "@/components/mobile/BottomSheetSelect";
-import { ItemPickerSheet } from "@/components/mobile/ItemPickerSheet";
-import { QtyStepper } from "@/components/mobile/QtyStepper";
-
-import { Card, CardContent } from "@/components/ui/card";
+import { CounterList, CounterRow } from "@/components/mobile/CounterList";
+import { SuccessScreen } from "@/components/mobile/SuccessScreen";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerBody,
+  DrawerFooter,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 
 import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
-
-// Thread D action
 import { dispatchToLaundry } from "@/actions/transactions";
 import { DispatchToLaundrySchema } from "@/actions/transactions/schemas.client";
+import { useProperty } from "@/components/PropertyProvider";
+import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
+import { buildSentStory } from "@/lib/laundryStory";
+import { ShareUpdate } from "@/components/mobile/ShareUpdate";
 
-function todayDateKeyIST() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
-    new Date()
-  );
-}
-
-/** End-of-day IST for a YYYY-MM-DD key (for backdated entries). */
-function dateKeyToOccurredAt(dateKey: string): Date {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const istOffsetMs = 5.5 * 60 * 60 * 1000;
-  const endUtc = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - istOffsetMs);
-  return new Date(endUtc.getTime() - 1);
-}
-
-const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:dispatch";
-const LS_DISPATCH_ITEM_FREQ = "laundry:itemFreq:dispatch";
-
-type Line = { linenItemId: string; qty: number };
+const LS_ITEM_FREQ = "laundry:itemFreq:dispatch";
 
 function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
   }
 }
+
 function writeJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -74,480 +51,349 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
-export default function DispatchPage() {
+function formatToday() {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}
+
+function formatNowTime() {
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}
+
+export default function SendToLaundryPage() {
   const boot = useBootstrap();
-  const reduceMotion = useReducedMotion();
+  const router = useRouter();
+  const { propertyId: appPropertyId, selectProperty } = useProperty();
 
   const [propertyId, setPropertyId] = React.useState<string | null>(null);
   const [vendorId, setVendorId] = React.useState<string | null>(null);
-  const [lines, setLines] = React.useState<Line[]>([]);
-  const [done, setDone] = React.useState(false);
-  const [occurredDate, setOccurredDate] = React.useState(todayDateKeyIST);
+  const [qty, setQty] = React.useState<Record<string, number>>({});
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [doneSummary, setDoneSummary] = React.useState<{
+    total: number;
+    vendorName: string;
+    time: string;
+    story: string | null;
+  } | null>(null);
 
-  // Bootstrap defaults (localStorage -> first available)
+  // App-wide selection, falling back to the first accessible hotel.
   React.useEffect(() => {
     if (!boot.data?.properties?.length) return;
-    const saved = localStorage.getItem(LS_PROPERTY);
     const first = boot.data.properties[0].id;
     setPropertyId(
-      saved && boot.data.properties.some((p) => p.id === saved) ? saved : first
+      appPropertyId && boot.data.properties.some((p) => p.id === appPropertyId)
+        ? appPropertyId
+        : first
     );
-  }, [boot.data?.properties]);
+  }, [boot.data?.properties, appPropertyId]);
 
   React.useEffect(() => {
     if (!boot.data?.vendors?.length) return;
     const saved = localStorage.getItem(LS_VENDOR);
-    if (saved && boot.data.vendors.some((v) => v.id === saved))
+    if (saved && boot.data.vendors.some((v) => v.id === saved)) {
       setVendorId(saved);
+    } else if (boot.data.vendors.length === 1) {
+      setVendorId(boot.data.vendors[0].id);
+    }
   }, [boot.data?.vendors]);
 
-  const items = React.useMemo(() => boot.data?.items ?? [], [boot.data?.items]);
-
-  const selectedIds = React.useMemo(
-    () => new Set(lines.map((l) => l.linenItemId)),
-    [lines]
-  );
+  // Most-used items float to the top; order is fixed for the session
+  // so rows never jump while counting.
+  const items = React.useMemo(() => {
+    const all = boot.data?.items ?? [];
+    const freq = readJson<Record<string, number>>(LS_ITEM_FREQ, {});
+    return [...all].sort(
+      (a, b) =>
+        (freq[b.id] ?? 0) - (freq[a.id] ?? 0) || a.name.localeCompare(b.name)
+    );
+  }, [boot.data?.items]);
 
   const totalQty = React.useMemo(
-    () => lines.reduce((s, l) => s + (l.qty || 0), 0),
-    [lines]
+    () => Object.values(qty).reduce((s, n) => s + (n || 0), 0),
+    [qty]
+  );
+  const countedItems = React.useMemo(
+    () => items.filter((it) => (qty[it.id] ?? 0) > 0),
+    [items, qty]
   );
 
-  const totalLines = React.useMemo(
-    () => lines.filter((l) => (l.qty || 0) > 0).length,
-    [lines]
-  );
-
-  const { isSubmitting, submit } = useSubmitAction(dispatchToLaundry as any, {
-    successTitle: "Dispatch saved",
-    errorTitle: "Dispatch failed",
+  const { isSubmitting, submit } = useSubmitAction(dispatchToLaundry, {
+    successTitle: "Saved in the register",
+    errorTitle: "Could not save",
   });
-
-  const canSubmit = !!propertyId && !!vendorId && totalQty > 0 && !isSubmitting;
 
   const propertyOptions =
     boot.data?.properties.map((p) => ({ value: p.id, label: p.name })) ?? [];
   const vendorOptions =
     boot.data?.vendors.map((v) => ({ value: v.id, label: v.name })) ?? [];
+  const vendorName =
+    vendorOptions.find((o) => o.value === vendorId)?.label ?? "";
 
-  const selectedProperty = propertyOptions.find((o) => o.value === propertyId);
-  const selectedVendor = vendorOptions.find((o) => o.value === vendorId);
+  const canReview = !!propertyId && !!vendorId && totalQty > 0 && !isSubmitting;
 
-  const quickItems = React.useMemo(() => {
-    // Top items from local usage frequency (dispatch only)
-    if (!items.length) return [];
-    let freq: Record<string, number> = {};
-    if (typeof window !== "undefined") {
-      freq = readJson<Record<string, number>>(LS_DISPATCH_ITEM_FREQ, {});
-    }
-    const ranked = [...items]
-      .map((it) => ({ it, score: freq[it.id] ?? 0 }))
-      .sort((a, b) => b.score - a.score)
-      .filter((x) => x.score > 0)
-      .slice(0, 10)
-      .map((x) => ({
-        id: x.it.id,
-        name: x.it.name,
-        subtitle: x.it.unit ?? undefined,
-      }));
-
-    // If no history yet, show first few as “quick”
-    if (ranked.length) return ranked;
-    return items.slice(0, 8).map((it) => ({
-      id: it.id,
-      name: it.name,
-      subtitle: it.unit ?? undefined,
-    }));
-  }, [items]);
-
-  const onAddItem = (id: string) => {
-    setLines((prev) =>
-      prev.some((x) => x.linenItemId === id)
-        ? prev
-        : [...prev, { linenItemId: id, qty: 0 }]
-    );
-
-    // bump local frequency for better “quick add” next time (keyboard-less speed)
-    try {
-      const freq = readJson<Record<string, number>>(LS_DISPATCH_ITEM_FREQ, {});
-      freq[id] = (freq[id] ?? 0) + 1;
-      writeJson(LS_DISPATCH_ITEM_FREQ, freq);
-    } catch {
-      // ignore
-    }
-  };
-
-  const onRemoveItem = (id: string) => {
-    setLines((prev) => prev.filter((x) => x.linenItemId !== id));
-  };
-
-  const onReset = () => {
-    setLines([]);
-    setDone(false);
-  };
-
-  const onSubmit = async () => {
+  const onConfirm = async () => {
     if (!propertyId || !vendorId) return;
-    localStorage.setItem(LS_PROPERTY, propertyId);
+    selectProperty(propertyId);
     localStorage.setItem(LS_VENDOR, vendorId);
 
-    const payload = {
+    const lines = countedItems.map((it) => ({
+      linenItemId: it.id,
+      qty: qty[it.id],
+    }));
+
+    const parsed = DispatchToLaundrySchema.safeParse({
       propertyId,
       vendorId,
       idempotencyKey: newIdempotencyKey(),
-      lines: lines.filter((l) => l.qty > 0),
-      ...(occurredDate !== todayDateKeyIST()
-        ? { occurredAt: dateKeyToOccurredAt(occurredDate) }
-        : {}),
-    };
-
-    const parsed = DispatchToLaundrySchema.safeParse(payload as any);
+      lines,
+    });
     if (!parsed.success) return;
 
-    const res = await submit(parsed.data as any);
-    if (res?.ok) setDone(true);
+    const res = await submit(parsed.data);
+    if (res?.ok) {
+      // Remember what was sent so next time those items are on top.
+      const freq = readJson<Record<string, number>>(LS_ITEM_FREQ, {});
+      for (const l of lines) freq[l.linenItemId] = (freq[l.linenItemId] ?? 0) + 1;
+      writeJson(LS_ITEM_FREQ, freq);
+
+      setReviewOpen(false);
+      setDoneSummary({
+        total: totalQty,
+        vendorName,
+        time: formatNowTime(),
+        story: null,
+      });
+
+      // Build the WhatsApp story with the vendor's balance AFTER this entry.
+      const propertyName =
+        propertyOptions.find((o) => o.value === propertyId)?.label ?? "";
+      const sentLines = countedItems.map((it) => ({
+        name: it.name,
+        qty: qty[it.id],
+      }));
+      const itemNames = new Map(items.map((it) => [it.id, it.name]));
+      const pend = await getPendingItemsForVendor({ propertyId, vendorId });
+      const story = buildSentStory({
+        propertyName,
+        when: new Date(),
+        lines: sentLines,
+        pendingLines: pend.ok
+          ? pend.rows.map((r) => ({
+              name: itemNames.get(r.linenItemId) ?? "Item",
+              qty: r.totalPending,
+            }))
+          : null,
+      });
+      setDoneSummary((prev) => (prev ? { ...prev, story } : prev));
+    }
   };
 
-  const setQty = (linenItemId: string, next: number) => {
-    setLines((prev) =>
-      prev.map((x) => (x.linenItemId === linenItemId ? { ...x, qty: next } : x))
-    );
-  };
-
-  const headerRight = (
-    <div className="flex items-center gap-2">
-      <Badge
-        variant="secondary"
-        className="rounded-2xl border border-violet-200/60 bg-white/60 text-xs text-violet-700 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40 dark:text-violet-200"
+  if (doneSummary) {
+    return (
+      <SuccessScreen
+        title="Sent to laundry"
+        summary={`${doneSummary.total} pieces to ${doneSummary.vendorName}`}
+        detail={`Today, ${doneSummary.time} · saved in the register`}
+        primaryLabel="Done"
+        onPrimary={() => router.push("/app")}
+        secondaryLabel="Send more"
+        onSecondary={() => {
+          setQty({});
+          setDoneSummary(null);
+        }}
       >
-        <Truck className="mr-1 h-4 w-4" />
-        Dispatch
-      </Badge>
-    </div>
-  );
+        <ShareUpdate text={doneSummary.story} className="mt-7" />
+      </SuccessScreen>
+    );
+  }
+
+  const noProperty = !boot.loading && boot.data?.properties?.length === 0;
 
   return (
-    <div className="min-h-dvh bg-linear-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-      <PageHeader title="Dispatch" right={headerRight as any} />
+    <div className="min-h-dvh bg-background pb-40">
+      <PageHeader title="Send to laundry" subtitle="Dirty linen going out" />
 
-      <main className="mx-auto w-full max-w-md space-y-4 px-3 pb-28 pt-4">
-        {/* Empty / access state */}
-        {!boot.loading && boot.data?.properties?.length === 0 ? (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  <AlertTriangle className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">
-                    No property assigned
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Ask admin to assign a property to your account.
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {/* Pickers */}
-        {boot.loading ? (
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+        {noProperty ? (
+          <div className="surface rounded-2xl p-5 text-center">
+            <p className="text-base font-semibold">No hotel assigned yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ask your manager to add you to a hotel.
+            </p>
+          </div>
+        ) : boot.loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full rounded-3xl" />
-            <Skeleton className="h-16 w-full rounded-3xl" />
+            <Skeleton className="h-16 w-full rounded-2xl" />
+            <Skeleton className="h-16 w-full rounded-2xl" />
+            <Skeleton className="h-64 w-full rounded-2xl" />
           </div>
         ) : (
-          <div className="space-y-3">
-            <BottomSheetSelect
-              label="Property"
-              value={propertyId}
-              options={propertyOptions}
-              onChange={(v) => {
-                setPropertyId(v);
-                setDone(false);
-              }}
-              placeholder="Select property"
-              disabled={boot.loading}
-              leadingIcon="building"
-            />
+          <>
+            {propertyOptions.length > 1 ? (
+              <BottomSheetSelect
+                label="Hotel"
+                value={propertyId}
+                options={propertyOptions}
+                onChange={(v) => {
+                  setPropertyId(v);
+                  selectProperty(v);
+                }}
+                placeholder="Choose hotel"
+                hint="Where is this linen from?"
+                leadingIcon="building"
+              />
+            ) : null}
 
             <BottomSheetSelect
-              label="Vendor"
+              label="Laundry"
               value={vendorId}
               options={vendorOptions}
-              onChange={(v) => {
-                setVendorId(v);
-                setDone(false);
-              }}
-              placeholder="Select vendor"
-              disabled={boot.loading || !propertyId}
+              onChange={(v) => setVendorId(v)}
+              placeholder="Choose laundry"
+              hint="Who is taking the linen?"
+              disabled={!propertyId}
               leadingIcon="truck"
             />
 
-            <div className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-              <label
-                htmlFor="dispatch-date"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Transaction date
-              </label>
-              <input
-                id="dispatch-date"
-                type="date"
-                max={todayDateKeyIST()}
-                value={occurredDate}
-                onChange={(e) => {
-                  setOccurredDate(e.target.value || todayDateKeyIST());
-                  setDone(false);
-                }}
-                className="mt-2 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-              />
-              {occurredDate !== todayDateKeyIST() ? (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                  Backdating to {occurredDate}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        )}
+            <HelpNote>
+              Count the dirty linen you are handing over. It stays in{" "}
+              {vendorName ? `${vendorName}'s` : "the laundry's"} account until
+              they bring it back washed.
+            </HelpNote>
 
-        {/* Status / Guidance */}
-        {!done && (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">Soiled → Laundry</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Pick vendor, add items, set soiled qty.
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                    {totalQty} pcs
-                  </Badge>
-                </div>
+            <section aria-label="Count the linen">
+              <div className="flex items-baseline justify-between px-1 pb-2 pt-1">
+                <h2 className="text-base font-bold">How many of each?</h2>
+                <span className="text-sm text-muted-foreground">
+                  Today, {formatToday()}
+                </span>
               </div>
 
-              <Separator className="my-3 opacity-60" />
-
-              <div className="flex items-center justify-between text-sm">
-                <div className="text-muted-foreground">Selected</div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="secondary"
-                    className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                  >
-                    {selectedProperty?.label ?? "—"}
-                  </Badge>
-                  <Badge
-                    variant="secondary"
-                    className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                  >
-                    {selectedVendor?.label ?? "—"}
-                  </Badge>
+              {items.length === 0 ? (
+                <div className="surface rounded-2xl p-5 text-center">
+                  <p className="text-base font-semibold">No linen items yet</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your admin needs to add items like bedsheets and towels
+                    first.
+                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Done state */}
-        {done ? (
-          <LazyMotion features={domAnimation}>
-            <m.div
-              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-            >
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        Dispatch saved
-                        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-300" />
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Start a new dispatch when ready.
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="mt-4 h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 dark:bg-violet-500 dark:hover:bg-violet-500/90"
-                    onClick={onReset}
-                  >
-                    New Dispatch
-                  </Button>
-                </CardContent>
-              </Card>
-            </m.div>
-          </LazyMotion>
-        ) : (
-          <>
-            {/* Add items */}
-            <ItemPickerSheet
-              title="Add linen items"
-              items={items.map((i) => ({
-                id: i.id,
-                name: i.name,
-                subtitle: i.unit ?? undefined,
-              }))}
-              quickItems={quickItems}
-              selectedIds={selectedIds}
-              onAdd={onAddItem}
-              disabled={boot.loading || !propertyId || !vendorId}
-            />
-
-            {/* Lines */}
-            {lines.length === 0 ? (
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <PackagePlus className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">No items yet</div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Tap{" "}
-                        <span className="font-medium text-foreground">
-                          Add Items
-                        </span>{" "}
-                        to start.
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <LazyMotion features={domAnimation}>
-                <div className="space-y-3">
-                  <AnimatePresence initial={false}>
-                    {lines.map((l) => {
-                      const item = items.find((i) => i.id === l.linenItemId);
-                      return (
-                        <m.div
-                          key={l.linenItemId}
-                          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                          animate={
-                            reduceMotion ? undefined : { opacity: 1, y: 0 }
-                          }
-                          exit={
-                            reduceMotion ? undefined : { opacity: 0, y: -10 }
-                          }
-                          transition={{ duration: 0.16 }}
-                        >
-                          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                            <CardContent className="p-4">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="truncate text-base font-semibold leading-tight">
-                                    {item?.name ?? "Item"}
-                                  </div>
-                                  <div className="mt-1 text-sm text-muted-foreground">
-                                    Soiled qty
-                                    {item?.unit ? (
-                                      <span className="ml-1">
-                                        • {item.unit}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <QtyStepper
-                                    value={l.qty}
-                                    onChange={(next) =>
-                                      setQty(l.linenItemId, next)
-                                    }
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className=" text-red-500"
-                                    size={"icon"}
-                                    onClick={() => onRemoveItem(l.linenItemId)}
-                                    aria-label="Remove item"
-                                  >
-                                    <Trash2 className="h-5 w-5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </m.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-              </LazyMotion>
-            )}
+              ) : (
+                <CounterList>
+                  {items.map((it) => (
+                    <CounterRow
+                      key={it.id}
+                      name={it.name}
+                      meta={it.unit ?? undefined}
+                      value={qty[it.id] ?? 0}
+                      onChange={(next) =>
+                        setQty((prev) => ({ ...prev, [it.id]: next }))
+                      }
+                      disabled={!vendorId}
+                    />
+                  ))}
+                </CounterList>
+              )}
+            </section>
           </>
         )}
       </main>
 
-      {/* Sticky bottom CTA */}
-      {!done && (
+      {!noProperty && (
         <StickyBar>
-          <div className="flex items-center justify-between pb-2 text-sm">
-            <div className="text-muted-foreground">Total</div>
-            <div className="font-semibold">{totalQty}</div>
-          </div>
-
-          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-              >
-                {totalLines} items
-              </Badge>
-              {isSubmitting ? (
-                <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                  Saving…
-                </Badge>
-              ) : null}
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div data-numeric className="text-2xl font-bold leading-tight">
+                {totalQty}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {totalQty === 0
+                  ? "Nothing counted yet"
+                  : `pieces · ${countedItems.length} ${
+                      countedItems.length === 1 ? "item" : "items"
+                    }`}
+              </div>
             </div>
-
-            {!propertyId || !vendorId ? (
-              <span className="inline-flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Pick property & vendor
-              </span>
-            ) : totalQty === 0 ? (
-              <span className="inline-flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Add qty
-              </span>
-            ) : null}
+            <Button
+              size="xl"
+              className="flex-1"
+              disabled={!canReview}
+              onClick={() => setReviewOpen(true)}
+            >
+              Review &amp; send
+            </Button>
           </div>
-
-          <Button
-            className="h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 disabled:bg-violet-600/40 dark:bg-violet-500 dark:hover:bg-violet-500/90 dark:disabled:bg-violet-500/40"
-            disabled={!canSubmit}
-            onClick={onSubmit}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Truck className="mr-2 h-5 w-5" />
-                Submit Dispatch
-              </>
-            )}
-          </Button>
         </StickyBar>
       )}
+
+      {/* Read-back confirmation: the last chance to catch a wrong count. */}
+      <Drawer open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Ready to send?</DrawerTitle>
+            <DrawerDescription>
+              To {vendorName || "laundry"} · Today, {formatToday()}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <DrawerBody className="px-5">
+            <ul className="divide-y divide-border">
+              {countedItems.map((it) => (
+                <li
+                  key={it.id}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <span className="min-w-0 truncate text-base font-medium">
+                    {it.name}
+                  </span>
+                  <span data-numeric className="text-base font-bold">
+                    {qty[it.id]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center justify-between border-t-2 border-foreground/10 py-3">
+              <span className="text-base font-bold">Total</span>
+              <span data-numeric className="text-lg font-bold">
+                {totalQty}
+              </span>
+            </div>
+          </DrawerBody>
+
+          <DrawerFooter className="space-y-2">
+            <Button
+              size="xl"
+              className="w-full"
+              disabled={isSubmitting}
+              onClick={onConfirm}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                `Yes, send ${totalQty} pieces`
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              disabled={isSubmitting}
+              onClick={() => setReviewOpen(false)}
+            >
+              Go back and change
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

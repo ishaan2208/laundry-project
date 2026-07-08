@@ -13,7 +13,7 @@ export default async function PhysicalStockCountsLayout({
 
   return (
     <div className="min-h-dvh bg-background">
-      <div className="border-b bg-background/80 px-4 py-3 backdrop-blur">
+      <div className="border-b bg-background px-4 py-3">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Link href="/admin/settings" className="hover:underline">
             Admin

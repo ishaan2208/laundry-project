@@ -1,695 +1,562 @@
 "use client";
 
 import * as React from "react";
-import {
-  LazyMotion,
-  domAnimation,
-  AnimatePresence,
-  m,
-  useReducedMotion,
-} from "framer-motion";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  Truck,
-  Trash2,
-  Inbox,
-  Sparkles,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/mobile/PageHeader";
+import { HelpNote } from "@/components/mobile/HelpNote";
 import { StickyBar } from "@/components/mobile/StickyBar";
 import { BottomSheetSelect } from "@/components/mobile/BottomSheetSelect";
-import { ItemPickerSheet } from "@/components/mobile/ItemPickerSheet";
+import { CounterList, CounterRow } from "@/components/mobile/CounterList";
 import { QtyStepper } from "@/components/mobile/QtyStepper";
 import { StatusPill } from "@/components/mobile/StatusPill";
-
-import { Card, CardContent } from "@/components/ui/card";
+import { SuccessScreen } from "@/components/mobile/SuccessScreen";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerBody,
+  DrawerFooter,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useBootstrap } from "@/hooks/useBootstrap";
 import { useSubmitAction, newIdempotencyKey } from "@/hooks/useSubmitAction";
 import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
-
-// Thread D action
 import { receiveFromLaundry } from "@/actions/transactions";
 import { ReceiveFromLaundrySchema } from "@/actions/transactions/schemas.client";
+import { useProperty } from "@/components/PropertyProvider";
+import { buildReceivedStory } from "@/lib/laundryStory";
+import { ShareUpdate } from "@/components/mobile/ShareUpdate";
 
-function todayDateKeyIST() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
-    new Date()
-  );
-}
-
-function dateKeyToOccurredAt(dateKey: string): Date {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const istOffsetMs = 5.5 * 60 * 60 * 1000;
-  const endUtc = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - istOffsetMs);
-  return new Date(endUtc.getTime() - 1);
-}
-
-const LS_PROPERTY = "laundry:lastPropertyId";
 const LS_VENDOR = "laundry:lastVendorId:receive";
-const LS_RECEIVE_ITEM_FREQ = "laundry:itemFreq:receive";
 
-type ReceiveLine = {
-  linenItemId: string;
-  cleanQty: number;
-  damagedQty: number;
-  rewashQty: number;
-};
+type Counts = { clean: number; damaged: number; rewash: number };
+const zero: Counts = { clean: 0, damaged: 0, rewash: 0 };
 
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-function writeJson(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+function formatToday() {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
 }
 
-export default function ReceivePage() {
+function formatNowTime() {
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}
+
+export default function ReceiveFromLaundryPage() {
   const boot = useBootstrap();
-  const reduceMotion = useReducedMotion();
-
-  const [done, setDone] = React.useState(false);
+  const router = useRouter();
+  const { propertyId: appPropertyId, selectProperty } = useProperty();
 
   const [propertyId, setPropertyId] = React.useState<string | null>(null);
   const [vendorId, setVendorId] = React.useState<string | null>(null);
 
-  // Big toggle: Pending vs All
-  const [view, setView] = React.useState<"PENDING" | "ALL">("PENDING");
-
   const [pendingLoading, setPendingLoading] = React.useState(false);
-  const [pendingMap, setPendingMap] = React.useState<
-    Record<string, { soiled: number; rewash: number; total: number }>
-  >({});
+  const [pendingMap, setPendingMap] = React.useState<Record<string, number>>(
+    {}
+  );
 
-  const [lines, setLines] = React.useState<ReceiveLine[]>([]);
-  const [occurredDate, setOccurredDate] = React.useState(todayDateKeyIST);
+  const [counts, setCounts] = React.useState<Record<string, Counts>>({});
+  const [extrasOpen, setExtrasOpen] = React.useState<Record<string, boolean>>(
+    {}
+  );
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [doneSummary, setDoneSummary] = React.useState<{
+    total: number;
+    vendorName: string;
+    time: string;
+    story: string | null;
+  } | null>(null);
 
-  // Bootstrap defaults
+  // App-wide selection, falling back to the first accessible hotel.
   React.useEffect(() => {
     if (!boot.data?.properties?.length) return;
-    const saved = localStorage.getItem(LS_PROPERTY);
     const first = boot.data.properties[0].id;
     setPropertyId(
-      saved && boot.data.properties.some((p) => p.id === saved) ? saved : first
+      appPropertyId && boot.data.properties.some((p) => p.id === appPropertyId)
+        ? appPropertyId
+        : first
     );
-  }, [boot.data?.properties]);
+  }, [boot.data?.properties, appPropertyId]);
 
   React.useEffect(() => {
     if (!boot.data?.vendors?.length) return;
     const saved = localStorage.getItem(LS_VENDOR);
-    if (saved && boot.data.vendors.some((v) => v.id === saved))
+    if (saved && boot.data.vendors.some((v) => v.id === saved)) {
       setVendorId(saved);
+    } else if (boot.data.vendors.length === 1) {
+      setVendorId(boot.data.vendors[0].id);
+    }
   }, [boot.data?.vendors]);
 
-  // Load pending per vendor & prefill items list
+  // What this laundry still holds — drives the "waiting to come back" list.
   React.useEffect(() => {
     if (!propertyId || !vendorId) return;
+    let cancelled = false;
 
     setPendingLoading(true);
-    setPendingMap({}); // avoid stale
+    setPendingMap({});
+    setCounts({});
+    setExtrasOpen({});
+
     (async () => {
       const res = await getPendingItemsForVendor({ propertyId, vendorId });
-      if (!res.ok) {
-        setPendingLoading(false);
-        return;
+      if (cancelled) return;
+      if (res.ok) {
+        const map: Record<string, number> = {};
+        for (const r of res.rows) map[r.linenItemId] = r.totalPending;
+        setPendingMap(map);
       }
-
-      const map: Record<
-        string,
-        { soiled: number; rewash: number; total: number }
-      > = {};
-      for (const r of res.rows) {
-        map[r.linenItemId] = {
-          soiled: r.pendingSoiled,
-          rewash: r.pendingRewash,
-          total: r.totalPending,
-        };
-      }
-      setPendingMap(map);
-
-      // Prefill lines with pending items (only if user hasn’t started editing)
-      setLines((prev) => {
-        if (prev.length) return prev;
-        return res.rows.map((r) => ({
-          linenItemId: r.linenItemId,
-          cleanQty: 0,
-          damagedQty: 0,
-          rewashQty: 0,
-        }));
-      });
-
       setPendingLoading(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [propertyId, vendorId]);
 
-  const items = boot.data?.items ?? [];
+  const items = React.useMemo(() => boot.data?.items ?? [], [boot.data]);
 
-  const selectedIds = React.useMemo(
-    () => new Set(lines.map((l) => l.linenItemId)),
-    [lines]
+  const pendingItems = React.useMemo(
+    () =>
+      items
+        .filter((it) => (pendingMap[it.id] ?? 0) > 0)
+        .sort((a, b) => (pendingMap[b.id] ?? 0) - (pendingMap[a.id] ?? 0)),
+    [items, pendingMap]
   );
+  const otherItems = React.useMemo(
+    () =>
+      items
+        .filter((it) => (pendingMap[it.id] ?? 0) <= 0)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [items, pendingMap]
+  );
+  const [showOthers, setShowOthers] = React.useState(false);
 
-  const visibleLines = React.useMemo(() => {
-    if (view === "ALL") return lines;
-    return lines.filter((l) => (pendingMap[l.linenItemId]?.total ?? 0) > 0);
-  }, [lines, view, pendingMap]);
+  const rowTotal = (c?: Counts) =>
+    (c?.clean ?? 0) + (c?.damaged ?? 0) + (c?.rewash ?? 0);
 
   const totalEntered = React.useMemo(
-    () =>
-      lines.reduce((s, l) => s + l.cleanQty + l.damagedQty + l.rewashQty, 0),
-    [lines]
+    () => Object.values(counts).reduce((s, c) => s + rowTotal(c), 0),
+    [counts]
+  );
+  const totalPending = React.useMemo(
+    () => Object.values(pendingMap).reduce((s, n) => s + n, 0),
+    [pendingMap]
+  );
+  const countedItems = React.useMemo(
+    () => items.filter((it) => rowTotal(counts[it.id]) > 0),
+    [items, counts]
   );
 
-  const totalPending = React.useMemo(() => {
-    if (!propertyId || !vendorId) return 0;
-    return Object.values(pendingMap).reduce((s, x) => s + (x.total || 0), 0);
-  }, [pendingMap, propertyId, vendorId]);
-
-  const { isSubmitting, submit } = useSubmitAction(receiveFromLaundry as any, {
-    successTitle: "Receive saved",
-    errorTitle: "Receive failed",
+  const { isSubmitting, submit } = useSubmitAction(receiveFromLaundry, {
+    successTitle: "Saved in the register",
+    errorTitle: "Could not save",
   });
-
-  const canSubmit =
-    !!propertyId && !!vendorId && totalEntered > 0 && !isSubmitting;
-
-  const bumpFreq = (id: string) => {
-    try {
-      const freq = readJson<Record<string, number>>(LS_RECEIVE_ITEM_FREQ, {});
-      freq[id] = (freq[id] ?? 0) + 1;
-      writeJson(LS_RECEIVE_ITEM_FREQ, freq);
-    } catch {
-      // ignore
-    }
-  };
-
-  const onAddItem = (id: string) => {
-    setLines((prev) =>
-      prev.some((x) => x.linenItemId === id)
-        ? prev
-        : [
-            ...prev,
-            { linenItemId: id, cleanQty: 0, damagedQty: 0, rewashQty: 0 },
-          ]
-    );
-    bumpFreq(id);
-  };
-
-  const onRemoveItem = (id: string) => {
-    setLines((prev) => prev.filter((x) => x.linenItemId !== id));
-  };
-
-  const setLine = (id: string, patch: Partial<ReceiveLine>) => {
-    setLines((prev) =>
-      prev.map((x) => (x.linenItemId === id ? { ...x, ...patch } : x))
-    );
-  };
-
-  const onSubmit = async () => {
-    if (!propertyId || !vendorId) return;
-    localStorage.setItem(LS_PROPERTY, propertyId);
-    localStorage.setItem(LS_VENDOR, vendorId);
-
-    const payload = {
-      propertyId,
-      vendorId,
-      idempotencyKey: newIdempotencyKey(),
-      lines: lines
-        .map((l) => ({
-          linenItemId: l.linenItemId,
-          receivedCleanQty: l.cleanQty,
-          damagedQty: l.damagedQty,
-          rewashQty: l.rewashQty,
-        }))
-        .filter((l) => l.receivedCleanQty + l.damagedQty + l.rewashQty > 0),
-      ...(occurredDate !== todayDateKeyIST()
-        ? { occurredAt: dateKeyToOccurredAt(occurredDate) }
-        : {}),
-    };
-
-    const parsed = ReceiveFromLaundrySchema.safeParse(payload as any);
-    if (!parsed.success) return;
-
-    const res = await submit(parsed.data as any);
-    if (res?.ok) setDone(true);
-  };
-
-  const onNewReceive = () => {
-    setLines([]);
-    setPendingMap({});
-    setDone(false);
-    setView("PENDING");
-  };
 
   const propertyOptions =
     boot.data?.properties.map((p) => ({ value: p.id, label: p.name })) ?? [];
   const vendorOptions =
     boot.data?.vendors.map((v) => ({ value: v.id, label: v.name })) ?? [];
+  const vendorName =
+    vendorOptions.find((o) => o.value === vendorId)?.label ?? "";
 
-  const quickItems = React.useMemo(() => {
-    if (!items.length) return [];
-    let freq: Record<string, number> = {};
-    if (typeof window !== "undefined") {
-      freq = readJson<Record<string, number>>(LS_RECEIVE_ITEM_FREQ, {});
+  const canReview =
+    !!propertyId && !!vendorId && totalEntered > 0 && !isSubmitting;
+
+  const setCount = (id: string, patch: Partial<Counts>) =>
+    setCounts((prev) => ({ ...prev, [id]: { ...zero, ...prev[id], ...patch } }));
+
+  const onConfirm = async () => {
+    if (!propertyId || !vendorId) return;
+    selectProperty(propertyId);
+    localStorage.setItem(LS_VENDOR, vendorId);
+
+    const parsed = ReceiveFromLaundrySchema.safeParse({
+      propertyId,
+      vendorId,
+      idempotencyKey: newIdempotencyKey(),
+      lines: countedItems.map((it) => ({
+        linenItemId: it.id,
+        receivedCleanQty: counts[it.id]?.clean ?? 0,
+        damagedQty: counts[it.id]?.damaged ?? 0,
+        rewashQty: counts[it.id]?.rewash ?? 0,
+      })),
+    });
+    if (!parsed.success) return;
+
+    const res = await submit(parsed.data);
+    if (res?.ok) {
+      setReviewOpen(false);
+      setDoneSummary({
+        total: totalEntered,
+        vendorName,
+        time: formatNowTime(),
+        story: null,
+      });
+
+      // Build the WhatsApp story with the vendor's balance AFTER this entry.
+      const propertyName =
+        propertyOptions.find((o) => o.value === propertyId)?.label ?? "";
+      const receivedLines = countedItems.map((it) => {
+        const c = counts[it.id] ?? zero;
+        return {
+          name: it.name,
+          clean: c.clean,
+          damaged: c.damaged,
+          rewash: c.rewash,
+        };
+      });
+      const itemNames = new Map(items.map((it) => [it.id, it.name]));
+      const pend = await getPendingItemsForVendor({ propertyId, vendorId });
+      const story = buildReceivedStory({
+        propertyName,
+        when: new Date(),
+        lines: receivedLines,
+        pendingLines: pend.ok
+          ? pend.rows.map((r) => ({
+              name: itemNames.get(r.linenItemId) ?? "Item",
+              qty: r.totalPending,
+            }))
+          : null,
+      });
+      setDoneSummary((prev) => (prev ? { ...prev, story } : prev));
     }
-    const ranked = [...items]
-      .map((it) => ({ it, score: freq[it.id] ?? 0 }))
-      .sort((a, b) => b.score - a.score)
-      .filter((x) => x.score > 0)
-      .slice(0, 10)
-      .map((x) => ({
-        id: x.it.id,
-        name: x.it.name,
-        subtitle: x.it.unit ?? undefined,
-      }));
+  };
 
-    if (ranked.length) return ranked;
-    return items.slice(0, 8).map((it) => ({
-      id: it.id,
-      name: it.name,
-      subtitle: it.unit ?? undefined,
-    }));
-  }, [items]);
+  if (doneSummary) {
+    return (
+      <SuccessScreen
+        title="Received from laundry"
+        summary={`${doneSummary.total} pieces from ${doneSummary.vendorName}`}
+        detail={`Today, ${doneSummary.time} · saved in the register`}
+        primaryLabel="Done"
+        onPrimary={() => router.push("/app")}
+        secondaryLabel="Receive more"
+        onSecondary={() => {
+          setCounts({});
+          setDoneSummary(null);
+        }}
+      >
+        <ShareUpdate text={doneSummary.story} className="mt-7" />
+      </SuccessScreen>
+    );
+  }
 
-  const headerRight = (
-    <Badge
-      variant="secondary"
-      className="rounded-2xl border border-violet-200/60 bg-white/60 text-xs text-violet-700 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40 dark:text-violet-200"
-    >
-      <Inbox className="mr-1 h-4 w-4" />
-      Receive
-    </Badge>
-  );
+  const noProperty = !boot.loading && boot.data?.properties?.length === 0;
 
-  return (
-    <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-      <PageHeader title="Receive" right={headerRight as any} />
+  const renderRow = (it: { id: string; name: string; unit?: string | null }) => {
+    const pending = pendingMap[it.id] ?? 0;
+    const c = counts[it.id] ?? zero;
+    const entered = rowTotal(c);
+    const over = pending > 0 && entered > pending;
+    const hasExtras = extrasOpen[it.id] || c.damaged > 0 || c.rewash > 0;
 
-      <main className="mx-auto w-full max-w-md space-y-4 px-3 pb-28 pt-4">
-        {/* No property assigned */}
-        {!boot.loading && boot.data?.properties?.length === 0 ? (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  <AlertTriangle className="h-5 w-5" />
+    return (
+      <CounterRow
+        key={it.id}
+        name={it.name}
+        meta={
+          pending > 0 ? (
+            <span className="inline-flex items-center gap-2">
+              <span>{pending} still out</span>
+              {c.clean !== pending ? (
+                <button
+                  type="button"
+                  onClick={() => setCount(it.id, { clean: pending })}
+                  className="press rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-accent-foreground"
+                >
+                  All {pending} back
+                </button>
+              ) : null}
+            </span>
+          ) : (
+            it.unit ?? undefined
+          )
+        }
+        value={c.clean}
+        onChange={(next) => setCount(it.id, { clean: next })}
+        disabled={!vendorId}
+        extra={
+          <div className="mt-1">
+            {over ? (
+              <p className="mb-1 text-sm font-medium text-soiled">
+                That is more than the {pending} sent — please check.
+              </p>
+            ) : null}
+
+            {hasExtras ? (
+              <div className="space-y-2 rounded-xl bg-muted/60 p-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <StatusPill condition="DAMAGED" />
+                  <QtyStepper
+                    value={c.damaged}
+                    onChange={(v) => setCount(it.id, { damaged: v })}
+                    label={`${it.name} damaged`}
+                  />
                 </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">
-                    No property assigned
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Ask admin to assign a property to your account.
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <StatusPill condition="REWASH">Wash again</StatusPill>
+                  <QtyStepper
+                    value={c.rewash}
+                    onChange={(v) => setCount(it.id, { rewash: v })}
+                    label={`${it.name} to wash again`}
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ) : null}
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  setExtrasOpen((prev) => ({ ...prev, [it.id]: true }))
+                }
+                className="press inline-flex items-center gap-1 rounded-lg px-1 py-0.5 text-sm font-medium text-muted-foreground"
+              >
+                <Plus className="size-4" />
+                Damaged or wash again?
+              </button>
+            )}
+          </div>
+        }
+      />
+    );
+  };
 
-        {/* Pickers */}
-        {boot.loading ? (
+  return (
+    <div className="min-h-dvh bg-background pb-40">
+      <PageHeader
+        title="Receive from laundry"
+        subtitle="Clean linen coming back"
+      />
+
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+        {noProperty ? (
+          <div className="surface rounded-2xl p-5 text-center">
+            <p className="text-base font-semibold">No hotel assigned yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ask your manager to add you to a hotel.
+            </p>
+          </div>
+        ) : boot.loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full rounded-3xl" />
-            <Skeleton className="h-16 w-full rounded-3xl" />
+            <Skeleton className="h-16 w-full rounded-2xl" />
+            <Skeleton className="h-16 w-full rounded-2xl" />
+            <Skeleton className="h-64 w-full rounded-2xl" />
           </div>
         ) : (
-          <div className="space-y-3">
-            <BottomSheetSelect
-              label="Property"
-              value={propertyId}
-              options={propertyOptions}
-              onChange={(v) => {
-                setPropertyId(v);
-                setDone(false);
-              }}
-              placeholder="Select property"
-              disabled={boot.loading}
-              leadingIcon="building"
-            />
+          <>
+            {propertyOptions.length > 1 ? (
+              <BottomSheetSelect
+                label="Hotel"
+                value={propertyId}
+                options={propertyOptions}
+                onChange={(v) => {
+                  setPropertyId(v);
+                  selectProperty(v);
+                }}
+                placeholder="Choose hotel"
+                hint="Which hotel is this linen for?"
+                leadingIcon="building"
+              />
+            ) : null}
 
             <BottomSheetSelect
-              label="Vendor"
+              label="Laundry"
               value={vendorId}
               options={vendorOptions}
-              onChange={(v) => {
-                setVendorId(v);
-                setDone(false);
-              }}
-              placeholder="Select vendor"
-              disabled={boot.loading || !propertyId}
+              onChange={setVendorId}
+              placeholder="Choose laundry"
+              hint="Who brought the linen back?"
+              disabled={!propertyId}
               leadingIcon="truck"
             />
 
-            <div className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-              <label
-                htmlFor="receive-date"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Transaction date
-              </label>
-              <input
-                id="receive-date"
-                type="date"
-                max={todayDateKeyIST()}
-                value={occurredDate}
-                onChange={(e) => {
-                  setOccurredDate(e.target.value || todayDateKeyIST());
-                  setDone(false);
-                }}
-                className="mt-2 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-              />
-              {occurredDate !== todayDateKeyIST() ? (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                  Backdating to {occurredDate}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {/* Pending/All tabs (big, thumb-friendly) */}
-        {!done && (
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">Laundry → Store</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Enter received qty (Clean / Damaged / Rewash).
-                  </div>
-                </div>
-
-                <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                  {totalEntered} pcs
-                </Badge>
-              </div>
-
-              <Separator className="my-3 opacity-60" />
-
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  Vendor pending:{" "}
-                  <span className="font-semibold text-foreground">
-                    {totalPending}
-                  </span>
-                </div>
-
-                <Tabs value={view} onValueChange={(v) => setView(v as any)}>
-                  <TabsList className="h-12 rounded-2xl bg-white/60 p-1 backdrop-blur-[2px] dark:bg-zinc-950/40">
-                    <TabsTrigger
-                      value="PENDING"
-                      className="h-10 rounded-2xl px-4 text-sm"
-                    >
-                      Pending
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="ALL"
-                      className="h-10 rounded-2xl px-4 text-sm"
-                    >
-                      All
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Add items */}
-        {!done && (
-          <ItemPickerSheet
-            title="Add linen items"
-            items={items.map((i) => ({
-              id: i.id,
-              name: i.name,
-              subtitle: i.unit ?? undefined,
-            }))}
-            quickItems={quickItems}
-            selectedIds={selectedIds}
-            onAdd={onAddItem}
-            disabled={boot.loading || !propertyId || !vendorId}
-          />
-        )}
-
-        {/* Done state */}
-        {done ? (
-          <LazyMotion features={domAnimation}>
-            <m.div
-              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-            >
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        Receive saved
-                        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-300" />
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Start a new receive when ready.
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="mt-4 h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 dark:bg-violet-500 dark:hover:bg-violet-500/90"
-                    onClick={onNewReceive}
-                  >
-                    New Receive
-                  </Button>
-                </CardContent>
-              </Card>
-            </m.div>
-          </LazyMotion>
-        ) : (
-          <>
-            {/* Loading state for pending */}
-            {propertyId && vendorId && pendingLoading ? (
+            {!vendorId ? null : pendingLoading ? (
               <div className="space-y-3">
-                <Skeleton className="h-28 w-full rounded-3xl" />
-                <Skeleton className="h-28 w-full rounded-3xl" />
-                <Skeleton className="h-28 w-full rounded-3xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
               </div>
-            ) : visibleLines.length === 0 ? (
-              <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 rounded-2xl bg-violet-600/10 p-2 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      <AlertTriangle className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">
-                        {view === "PENDING"
-                          ? "No pending items"
-                          : "No items yet"}
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {view === "PENDING"
-                          ? "Switch to All or add items manually."
-                          : "Tap Add Items to start."}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             ) : (
-              <LazyMotion features={domAnimation}>
-                <div className="space-y-3">
-                  <AnimatePresence initial={false}>
-                    {visibleLines.map((l) => {
-                      const item = items.find((i) => i.id === l.linenItemId);
-                      const pending = pendingMap[l.linenItemId]?.total ?? 0;
-                      const entered = l.cleanQty + l.damagedQty + l.rewashQty;
-                      const over = pending > 0 && entered > pending;
+              <>
+                <HelpNote>
+                  Count what {vendorName || "the laundry"} brought back.
+                  &ldquo;Still out&rdquo; is what they have not returned yet.
+                </HelpNote>
+                <section aria-label="Waiting to come back">
+                  <div className="flex items-baseline justify-between px-1 pb-2 pt-1">
+                    <h2 className="text-base font-bold">
+                      Waiting to come back
+                    </h2>
+                    <span
+                      data-numeric
+                      className="text-sm font-semibold text-soiled"
+                    >
+                      {totalPending} out
+                    </span>
+                  </div>
 
-                      return (
-                        <m.div
-                          key={l.linenItemId}
-                          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                          animate={
-                            reduceMotion ? undefined : { opacity: 1, y: 0 }
-                          }
-                          exit={
-                            reduceMotion ? undefined : { opacity: 0, y: -10 }
-                          }
-                          transition={{ duration: 0.16 }}
-                        >
-                          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-                            <CardContent className="p-4">
-                              {/* Header row */}
-                              <div className="flex items-start justify-between gap-1">
-                                <div className="min-w-0">
-                                  <div className="truncate text-base font-semibold leading-tight">
-                                    {item?.name ?? "Item"}
-                                  </div>
+                  {pendingItems.length === 0 ? (
+                    <div className="surface rounded-2xl p-5 text-center">
+                      <p className="text-base font-semibold">
+                        Nothing is out with {vendorName || "this laundry"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        If they brought something anyway, add it from the list
+                        below.
+                      </p>
+                    </div>
+                  ) : (
+                    <CounterList>{pendingItems.map(renderRow)}</CounterList>
+                  )}
+                </section>
 
-                                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <Badge
-                                      variant="secondary"
-                                      className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                                    >
-                                      Pending: {pending}
-                                    </Badge>
-
-                                    <Badge
-                                      className={`rounded-2xl ${
-                                        over
-                                          ? "bg-amber-500 text-white"
-                                          : "bg-violet-600 text-white dark:bg-violet-500"
-                                      }`}
-                                    >
-                                      Entered: {entered}
-                                    </Badge>
-
-                                    {over ? (
-                                      <span className="text-xs text-amber-600 dark:text-amber-300">
-                                        Over pending
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="h-12 w-12 rounded-2xl text-muted-foreground hover:text-foreground"
-                                  onClick={() => onRemoveItem(l.linenItemId)}
-                                  aria-label="Remove item"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </Button>
-                              </div>
-
-                              <Separator className="my-3 opacity-60" />
-
-                              {/* Qty rows */}
-                              <div className="grid grid-cols-1 gap-1">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <StatusPill condition="CLEAN" />
-                                    <div className="text-sm font-medium">
-                                      Clean
-                                    </div>
-                                  </div>
-                                  <QtyStepper
-                                    value={l.cleanQty}
-                                    onChange={(v) =>
-                                      setLine(l.linenItemId, { cleanQty: v })
-                                    }
-                                  />
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <StatusPill condition="DAMAGED" />
-                                    <div className="text-sm font-medium">
-                                      Damaged
-                                    </div>
-                                  </div>
-                                  <QtyStepper
-                                    value={l.damagedQty}
-                                    onChange={(v) =>
-                                      setLine(l.linenItemId, { damagedQty: v })
-                                    }
-                                  />
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <StatusPill condition="REWASH" />
-                                    <div className="text-sm font-medium">
-                                      Rewash
-                                    </div>
-                                  </div>
-                                  <QtyStepper
-                                    value={l.rewashQty}
-                                    onChange={(v) =>
-                                      setLine(l.linenItemId, { rewashQty: v })
-                                    }
-                                  />
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </m.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-              </LazyMotion>
+                {otherItems.length > 0 ? (
+                  <section aria-label="Other items">
+                    {showOthers ? (
+                      <>
+                        <div className="px-1 pb-2 pt-1">
+                          <h2 className="text-base font-bold">Other items</h2>
+                        </div>
+                        <CounterList>{otherItems.map(renderRow)}</CounterList>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowOthers(true)}
+                        className="surface press flex min-h-14 w-full items-center justify-center gap-1.5 rounded-2xl px-4 text-base font-semibold text-muted-foreground"
+                      >
+                        <Plus className="size-5" />
+                        Something else came back
+                      </button>
+                    )}
+                  </section>
+                ) : null}
+              </>
             )}
           </>
         )}
       </main>
 
-      {/* Sticky bottom CTA (hide when done) */}
-      {!done && (
+      {!noProperty && (
         <StickyBar>
-          <div className="flex items-center justify-between pb-2 text-sm">
-            <div className="text-muted-foreground">Total entered</div>
-            <div className="font-semibold">{totalEntered}</div>
-          </div>
-
-          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-              >
-                Pending {totalPending}
-              </Badge>
-              {isSubmitting ? (
-                <Badge className="rounded-2xl bg-violet-600 text-white dark:bg-violet-500">
-                  Saving…
-                </Badge>
-              ) : null}
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div data-numeric className="text-2xl font-bold leading-tight">
+                {totalEntered}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {totalEntered === 0
+                  ? "Nothing counted yet"
+                  : `pieces · ${countedItems.length} ${
+                      countedItems.length === 1 ? "item" : "items"
+                    }`}
+              </div>
             </div>
-
-            {!propertyId || !vendorId ? (
-              <span className="inline-flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Pick property & vendor
-              </span>
-            ) : totalEntered === 0 ? (
-              <span className="inline-flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Add qty
-              </span>
-            ) : null}
+            <Button
+              size="xl"
+              className="flex-1"
+              disabled={!canReview}
+              onClick={() => setReviewOpen(true)}
+            >
+              Review &amp; save
+            </Button>
           </div>
-
-          <Button
-            className="h-14 w-full rounded-2xl bg-violet-600 text-base font-semibold text-white hover:bg-violet-600/90 disabled:bg-violet-600/40 dark:bg-violet-500 dark:hover:bg-violet-500/90 dark:disabled:bg-violet-500/40"
-            disabled={!canSubmit}
-            onClick={onSubmit}
-          >
-            <Truck className="mr-2 h-5 w-5" />
-            Submit Receive
-          </Button>
         </StickyBar>
       )}
+
+      <Drawer open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Everything counted?</DrawerTitle>
+            <DrawerDescription>
+              From {vendorName || "laundry"} · Today, {formatToday()}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <DrawerBody className="px-5">
+            <ul className="divide-y divide-border">
+              {countedItems.map((it) => {
+                const c = counts[it.id] ?? zero;
+                return (
+                  <li key={it.id} className="py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-base font-medium">
+                        {it.name}
+                      </span>
+                      <span data-numeric className="text-base font-bold">
+                        {rowTotal(c)}
+                      </span>
+                    </div>
+                    {c.damaged > 0 || c.rewash > 0 ? (
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {c.clean > 0 ? (
+                          <StatusPill condition="CLEAN">
+                            Clean {c.clean}
+                          </StatusPill>
+                        ) : null}
+                        {c.damaged > 0 ? (
+                          <StatusPill condition="DAMAGED">
+                            Damaged {c.damaged}
+                          </StatusPill>
+                        ) : null}
+                        {c.rewash > 0 ? (
+                          <StatusPill condition="REWASH">
+                            Wash again {c.rewash}
+                          </StatusPill>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex items-center justify-between border-t-2 border-foreground/10 py-3">
+              <span className="text-base font-bold">Total received</span>
+              <span data-numeric className="text-lg font-bold">
+                {totalEntered}
+              </span>
+            </div>
+          </DrawerBody>
+
+          <DrawerFooter className="space-y-2">
+            <Button
+              size="xl"
+              className="w-full"
+              disabled={isSubmitting}
+              onClick={onConfirm}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                `Yes, received ${totalEntered} pieces`
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              className="w-full"
+              disabled={isSubmitting}
+              onClick={() => setReviewOpen(false)}
+            >
+              Go back and change
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

@@ -3,16 +3,22 @@ import { notFound } from "next/navigation";
 import { getPhysicalStockCount } from "@/actions/physicalCount/getPhysicalStockCount";
 import { PhysicalCountReviewClient } from "@/components/physicalCount/PhysicalCountReviewClient";
 import { PhysicalCountAdminEditor } from "@/components/physicalCount/PhysicalCountAdminEditor";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhysicalStockCountStatus } from "@/generated/prisma";
+import { cn } from "@/lib/utils";
 
-function statusVariant(s: PhysicalStockCountStatus) {
-  if (s === PhysicalStockCountStatus.PENDING_REVIEW) return "default";
-  if (s === PhysicalStockCountStatus.APPROVED) return "secondary";
-  return "destructive";
-}
+const STATUS_LABEL: Record<PhysicalStockCountStatus, string> = {
+  [PhysicalStockCountStatus.PENDING_REVIEW]: "Waiting for review",
+  [PhysicalStockCountStatus.APPROVED]: "Approved",
+  [PhysicalStockCountStatus.REJECTED]: "Rejected",
+};
+
+const STATUS_TONE: Record<PhysicalStockCountStatus, string> = {
+  [PhysicalStockCountStatus.PENDING_REVIEW]: "bg-soiled-soft text-soiled",
+  [PhysicalStockCountStatus.APPROVED]: "bg-clean-soft text-clean",
+  [PhysicalStockCountStatus.REJECTED]: "bg-damaged-soft text-damaged",
+};
 
 export default async function PhysicalStockCountDetailPage({
   params,
@@ -38,31 +44,34 @@ export default async function PhysicalStockCountDetailPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Badge variant={statusVariant(detail.status)}>
-          {detail.status.replaceAll("_", " ")}
+        <Badge
+          variant="secondary"
+          className={cn("rounded-full", STATUS_TONE[detail.status])}
+        >
+          {STATUS_LABEL[detail.status]}
         </Badge>
-        <Badge variant="outline">
-          {detail.includeVendor ? "vendor" : "no vendor"} ·{" "}
-          {detail.includeDiscarded ? "discarded" : "no discarded"}
+        <Badge variant="outline" className="rounded-full">
+          {detail.includeVendor ? "Includes laundry vendor" : "No laundry vendor"} ·{" "}
+          {detail.includeDiscarded ? "Includes discarded" : "No discarded"}
         </Badge>
       </div>
 
       {detail.staffNote ? (
-        <Card className="rounded-2xl border p-3 text-sm">
+        <div className="surface rounded-2xl p-3 text-sm">
           <span className="font-medium">Staff note:</span> {detail.staffNote}
-        </Card>
+        </div>
       ) : null}
 
       {detail.reviewNote ? (
-        <Card className="rounded-2xl border p-3 text-sm">
+        <div className="surface rounded-2xl p-3 text-sm">
           <span className="font-medium">Review note:</span> {detail.reviewNote}
-        </Card>
+        </div>
       ) : null}
 
       {detail.approvalTransactionId ? (
         <p className="text-sm">
           <Link
-            className="text-violet-600 underline"
+            className="text-primary underline"
             href={`/app/txns/${detail.approvalTransactionId}`}
           >
             View adjustment transaction

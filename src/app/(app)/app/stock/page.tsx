@@ -1,87 +1,53 @@
-// src/app/app/stock/page.tsx
+// src/app/app/stock/page.tsx — the "Linen" tab: where is our linen right now?
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { LocationKind, LinenCondition, UserRole } from "@/generated/prisma";
+import { requireUser, isAdmin } from "@/lib/auth";
+import { LocationKind, UserRole } from "@/generated/prisma";
 import { getBalances } from "@/actions/reports/getBalances";
-import { BalanceTable } from "@/components/reports/BalanceTable";
-import { ReportFiltersSheet } from "@/components/reports/ReportFiltersSheet";
 import PropertyPicker from "@/components/reports/PropertyPicker";
+import { PageHeader } from "@/components/mobile/PageHeader";
+import { HelpNote } from "@/components/mobile/HelpNote";
+import { RememberProperty } from "@/components/RememberProperty";
+import { resolvePropertyId } from "@/lib/propertyPref.server";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Boxes,
-  TriangleAlert,
-  Building2,
-  PackageSearch,
-  Sparkles,
-  Warehouse,
-  Shirt,
-  Droplets,
-  RotateCcw,
-  ClipboardCheck,
-  ListChecks,
-} from "lucide-react";
+import { ClipboardList, History, ChevronRight, TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const BASE_PATH = "/app/stock";
 
-function parseEnum<T extends string>(
-  v: unknown,
-  values: readonly T[],
-  fallback?: T
-) {
-  if (typeof v !== "string") return fallback;
-  return (values as readonly string[]).includes(v) ? (v as T) : fallback;
-}
+/** Staff-language names for the system buckets. */
+const buckets: { kind: LocationKind; label: string }[] = [
+  { kind: LocationKind.CLEAN_STORE, label: "Ready to use" },
+  { kind: LocationKind.SOILED_STORE, label: "To be washed" },
+  { kind: LocationKind.VENDOR, label: "At the laundry" },
+  { kind: LocationKind.REWASH_BIN, label: "Wash again" },
+  { kind: LocationKind.DAMAGED_BIN, label: "Damaged" },
+  { kind: LocationKind.DISCARDED_LOST, label: "Thrown away / lost" },
+];
 
-function labelEnum(v: string) {
-  return v.replaceAll("_", " ");
-}
-
-function kindIcon(kind: LocationKind) {
-  if (kind === LocationKind.VENDOR) return <Warehouse className="h-4 w-4" />;
-  if (kind === LocationKind.CLEAN_STORE) return <Shirt className="h-4 w-4" />;
-  if (kind === LocationKind.SOILED_STORE)
-    return <Droplets className="h-4 w-4" />;
-  return <Sparkles className="h-4 w-4" />;
+function parseKind(v: unknown): LocationKind {
+  if (
+    typeof v === "string" &&
+    (Object.values(LocationKind) as string[]).includes(v)
+  ) {
+    return v as LocationKind;
+  }
+  return LocationKind.CLEAN_STORE;
 }
 
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
-
   const sp = (await searchParams) as Record<
     string,
     string | string[] | undefined
   >;
 
-  const propertyId =
+  const propertyIdParam =
     typeof sp.propertyId === "string" ? sp.propertyId : undefined;
-
-  // Defaults: show vendor (in-laundry) balances by default
-  const locationKind =
-    parseEnum<LocationKind>(
-      sp.locationKind,
-      Object.values(LocationKind),
-      LocationKind.VENDOR
-    ) ?? LocationKind.VENDOR;
-
-  const condition = parseEnum<LinenCondition>(
-    sp.condition,
-    Object.values(LinenCondition),
-    undefined
-  );
-
-  const linenItemId =
-    typeof sp.linenItemId === "string" ? sp.linenItemId : undefined;
+  const locationKind = parseKind(sp.locationKind);
 
   const properties =
     user.role === UserRole.ADMIN
@@ -97,297 +63,223 @@ export default async function StockPage({
           })
           .then((rows) => rows.map((r) => r.property));
 
-  if (!propertyId && properties.length === 1) {
-    redirect(`${BASE_PATH}?propertyId=${properties[0].id}`);
-  }
-
-  const linenItems = propertyId
-    ? await prisma.linenItem.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
-
-  const res = propertyId
-    ? await getBalances({ propertyId, locationKind, condition, linenItemId })
-    : { ok: true as const, rows: [] };
-
-  if (!res.ok) {
-    return (
-      <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-        <div className="mx-auto w-full max-w-2xl p-3">
-          <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-4 text-sm backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-            Failed to load.
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  const negativeCount = res.rows.filter((r) => r.isNegative).length;
-
-  const activeFiltersCount =
-    Number(Boolean(condition)) +
-    Number(Boolean(linenItemId)) +
-    Number(Boolean(locationKind));
+  const propertyId = await resolvePropertyId(propertyIdParam, properties);
 
   const currentPropertyName = propertyId
     ? properties.find((p) => p.id === propertyId)?.name
     : undefined;
 
-  const selectedItemName = linenItemId
-    ? linenItems.find((i) => i.id === linenItemId)?.name ?? "Item"
-    : undefined;
+  const res = propertyId
+    ? await getBalances({ propertyId, locationKind })
+    : { ok: true as const, rows: [] };
 
-  const hasAnyData = res.rows.length > 0;
+  // One line per item (per vendor for the laundry view), conditions summed.
+  type Line = { key: string; name: string; sub?: string; qty: number };
+  const lines: Line[] = [];
+  if (res.ok) {
+    const map = new Map<string, Line>();
+    for (const r of res.rows) {
+      const key =
+        locationKind === LocationKind.VENDOR
+          ? `${r.linenItemId}:${r.vendorId ?? ""}`
+          : r.linenItemId;
+      const existing = map.get(key);
+      if (existing) {
+        existing.qty += r.qty;
+      } else {
+        map.set(key, {
+          key,
+          name: r.linenItemName,
+          sub:
+            locationKind === LocationKind.VENDOR
+              ? r.vendorName ?? undefined
+              : undefined,
+          qty: r.qty,
+        });
+      }
+    }
+    lines.push(
+      ...[...map.values()].sort(
+        (a, b) => Number(b.qty < 0) - Number(a.qty < 0) || b.qty - a.qty
+      )
+    );
+  }
+
+  const total = lines.reduce((s, l) => s + l.qty, 0);
+  const hasNegative = lines.some((l) => l.qty < 0);
+  const bucketLabel =
+    buckets.find((b) => b.kind === locationKind)?.label ?? "Linen";
+
+  const chipHref = (kind: LocationKind) => {
+    const p = new URLSearchParams();
+    if (propertyId) p.set("propertyId", propertyId);
+    p.set("locationKind", kind);
+    return `${BASE_PATH}?${p.toString()}`;
+  };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-violet-50/60 to-background dark:from-violet-950/20">
-      <div className="mx-auto w-full max-w-2xl p-3 pb-8">
-        {/* Header */}
-        <Card className="rounded-3xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-          <div className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    <Boxes className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-semibold">
-                      Stock Snapshot
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Balances = SUM of ledger entries
-                    </div>
-                  </div>
-                </div>
+    <div className="min-h-dvh bg-background pb-6">
+      <RememberProperty propertyId={propertyId} />
+      <PageHeader
+        title="Linen"
+        subtitle={currentPropertyName ?? "Where everything is right now"}
+        back={false}
+      />
 
-                {/* Chips */}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {currentPropertyName ? (
-                    <Badge
-                      variant="secondary"
-                      className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                    >
-                      <Building2 className="mr-1 h-4 w-4 text-violet-700 dark:text-violet-200" />
-                      {currentPropertyName}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="rounded-2xl border-violet-200/60 dark:border-violet-500/15"
-                    >
-                      <TriangleAlert className="mr-1 h-4 w-4" />
-                      Select property
-                    </Badge>
-                  )}
+      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+        {properties.length > 1 ? (
+          <PropertyPicker
+            properties={properties}
+            selectedPropertyId={propertyId}
+          />
+        ) : null}
 
-                  <Badge
-                    variant="secondary"
-                    className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                  >
-                    <span className="mr-1 inline-flex items-center text-violet-700 dark:text-violet-200">
-                      {kindIcon(locationKind)}
-                    </span>
-                    {labelEnum(locationKind)}
-                  </Badge>
-
-                  {condition ? (
-                    <Badge
-                      variant="secondary"
-                      className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                    >
-                      {labelEnum(condition)}
-                    </Badge>
-                  ) : null}
-
-                  {selectedItemName ? (
-                    <Badge
-                      variant="secondary"
-                      className="rounded-2xl border border-violet-200/60 bg-white/60 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-                    >
-                      <PackageSearch className="mr-1 h-4 w-4 text-violet-700 dark:text-violet-200" />
-                      {selectedItemName}
-                    </Badge>
-                  ) : null}
-
-                  {negativeCount > 0 ? (
-                    <Badge variant="destructive" className="rounded-2xl">
-                      <TriangleAlert className="mr-1 h-4 w-4" />
-                      {negativeCount} negative
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                {propertyId ? (
-                  <>
-                    <Button
-                      asChild
-                      variant="secondary"
-                      className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
-                    >
-                      <Link
-                        href={`/app/stock/audit?propertyId=${encodeURIComponent(propertyId)}`}
-                      >
-                        <ClipboardCheck className="mr-2 h-4 w-4" />
-                        Weekly audit
-                      </Link>
-                    </Button>
-                    <Button
-                      asChild
-                      variant="secondary"
-                      className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
-                    >
-                      <Link
-                        href={`/app/stock/physical-count?propertyId=${encodeURIComponent(propertyId)}`}
-                      >
-                        <ListChecks className="mr-2 h-4 w-4" />
-                        Physical count
-                      </Link>
-                    </Button>
-                  </>
-                ) : null}
-                <ReportFiltersSheet
-                  title="Stock Filters"
-                  buttonLabel="Filters"
-                  fields={[
-                    {
-                      key: "propertyId",
-                      label: "Property",
-                      type: "select",
-                      options: properties.map((p) => ({
-                        value: p.id,
-                        label: p.name,
-                      })),
-                      placeholder: "Select property",
-                    },
-                    {
-                      key: "locationKind",
-                      label: "Location",
-                      type: "select",
-                      options: Object.values(LocationKind).map((k) => ({
-                        value: k,
-                        label: labelEnum(k),
-                      })),
-                      placeholder: "Select location",
-                    },
-                    {
-                      key: "condition",
-                      label: "Condition",
-                      type: "select",
-                      options: Object.values(LinenCondition).map((c) => ({
-                        value: c,
-                        label: labelEnum(c),
-                      })),
-                      placeholder: "All conditions",
-                    },
-                    {
-                      key: "linenItemId",
-                      label: "Item",
-                      type: "select",
-                      options: linenItems.map((i) => ({
-                        value: i.id,
-                        label: i.name,
-                      })),
-                      placeholder: "All items",
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-
-            {/* Mobile property picker */}
-            {properties.length > 1 ? (
-              <div className="mt-4">
-                <PropertyPicker
-                  properties={properties}
-                  selectedPropertyId={propertyId}
-                />
-              </div>
-            ) : null}
-
-            {/* Reset tip row */}
-            {propertyId && activeFiltersCount > 0 ? (
-              <>
-                <Separator className="my-4 opacity-60" />
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
-                    Default view is{" "}
-                    <span className="font-medium text-foreground">Vendor</span>{" "}
-                    (in laundry).
-                  </div>
-                  <Button
-                    asChild
-                    variant="secondary"
-                    className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
-                  >
-                    <Link href={`${BASE_PATH}?propertyId=${propertyId}`}>
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reset
-                    </Link>
-                  </Button>
-                </div>
-              </>
-            ) : null}
+        {!propertyId ? (
+          <div className="surface rounded-2xl p-5 text-center">
+            <p className="text-base font-semibold">Choose your hotel first</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Linen numbers load after you pick one.
+            </p>
           </div>
-        </Card>
+        ) : (
+          <>
+            {/* Bucket chips: plain words, one tap */}
+            <nav
+              aria-label="Linen location"
+              className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {buckets.map((b) => {
+                const active = b.kind === locationKind;
+                return (
+                  <Link
+                    key={b.kind}
+                    href={chipHref(b.kind)}
+                    aria-current={active ? "true" : undefined}
+                    className={cn(
+                      "press inline-flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-semibold whitespace-nowrap",
+                      active
+                        ? "border-transparent bg-primary text-primary-foreground"
+                        : "bg-card text-foreground"
+                    )}
+                  >
+                    {b.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
-        {/* Body */}
-        <div className="mt-3">
-          {!propertyId ? (
-            <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm text-muted-foreground backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-              <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  <TriangleAlert className="h-5 w-5" />
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-foreground">
-                    Pick a property
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Stock snapshot needs a property first.
-                  </div>
+            <HelpNote>
+              Tap a word above to see where the linen is. These numbers add
+              themselves up from every entry in the register.
+            </HelpNote>
+
+            {hasNegative ? (
+              <HelpNote tone="warn">
+                A minus number is impossible — some entries went wrong.{" "}
+                {isAdmin(user)
+                  ? "Fix it with a Fresh start in Admin."
+                  : "Tell your admin so they can fix it."}
+              </HelpNote>
+            ) : null}
+
+            {/* Headline number for this bucket */}
+            <section className="surface rounded-2xl p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-bold">{bucketLabel}</h2>
+                <div className="flex items-baseline gap-1.5">
+                  <span
+                    data-numeric
+                    className="text-3xl font-bold tracking-tight"
+                  >
+                    {total}
+                  </span>
+                  <span className="text-sm text-muted-foreground">pieces</span>
                 </div>
               </div>
-            </Card>
-          ) : !hasAnyData ? (
-            <Card className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 text-sm text-muted-foreground backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-              <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  <Sparkles className="h-5 w-5" />
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-foreground">
-                    No rows
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    No balances match your current filters.
-                  </div>
-                  <div className="mt-3">
-                    <Button
-                      asChild
-                      variant="secondary"
-                      className="h-12 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+
+              {lines.length === 0 ? (
+                <p className="pt-3 pb-1 text-center text-sm text-muted-foreground">
+                  Nothing here right now.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-border border-t">
+                  {lines.map((l) => (
+                    <li
+                      key={l.key}
+                      className="flex items-center justify-between gap-3 py-3"
                     >
-                      <Link href={`${BASE_PATH}?propertyId=${propertyId}`}>
-                        <RotateCcw className="mr-2 h-5 w-5" />
-                        Reset filters
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ) : (
-            <BalanceTable rows={res.rows} />
-          )}
-        </div>
-      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-base font-medium">
+                          {l.name}
+                        </div>
+                        {l.sub ? (
+                          <div className="truncate text-sm text-muted-foreground">
+                            {l.sub}
+                          </div>
+                        ) : null}
+                        {l.qty < 0 ? (
+                          <div className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-damaged">
+                            <TriangleAlert className="size-4" />
+                            Below zero — tell your admin
+                          </div>
+                        ) : null}
+                      </div>
+                      <span
+                        data-numeric
+                        className={cn(
+                          "text-lg font-bold",
+                          l.qty < 0 && "text-damaged"
+                        )}
+                      >
+                        {l.qty}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* Related jobs */}
+            <div className="space-y-3">
+              <Link
+                href={`/app/stock/physical-count?propertyId=${encodeURIComponent(propertyId)}`}
+                className="surface press flex min-h-16 items-center gap-3 rounded-2xl px-4 py-3"
+              >
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                  <ClipboardList className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-semibold">
+                    Count linen
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    Check real stock against the book
+                  </span>
+                </span>
+                <ChevronRight className="size-5 text-muted-foreground" />
+              </Link>
+
+              <Link
+                href={`/app/stock/audit?propertyId=${encodeURIComponent(propertyId)}`}
+                className="surface press flex min-h-16 items-center gap-3 rounded-2xl px-4 py-3"
+              >
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                  <History className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-semibold">
+                    Weekly totals
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    Week-by-week stock history
+                  </span>
+                </span>
+                <ChevronRight className="size-5 text-muted-foreground" />
+              </Link>
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }

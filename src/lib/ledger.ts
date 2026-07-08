@@ -328,7 +328,7 @@ export async function postTransaction(
           }> = [];
 
           for (const [key, delta] of needed.entries()) {
-            const [_, locationId, linenItemId, condition] = key.split("|");
+            const [, locationId, linenItemId, condition] = key.split("|");
             const curQty = curMap.get(key) ?? 0;
             const resulting = curQty + delta; // delta is negative
             if (resulting < 0) {

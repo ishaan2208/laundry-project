@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { PhysicalStockCountStatus } from "@/generated/prisma";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { savePhysicalStockApprovedQuantities } from "@/actions/physicalCount/savePhysicalStockApprovedQuantities";
@@ -86,25 +85,26 @@ export function PhysicalCountAdminEditor(props: {
   }
 
   return (
-    <Card className="overflow-hidden rounded-2xl border p-0">
-      <div className="border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+    <div className="surface overflow-hidden rounded-2xl">
+      <div className="border-b bg-muted px-3 py-2 text-xs text-muted-foreground">
         {pending ? (
           <>
-            Edit <strong>Approved</strong> if the staff total should differ before
-            you approve. Only <strong>clean store · CLEAN</strong> is adjusted;
-            vendor / in-laundry buckets stay as booked.
+            Edit <strong>Approved</strong> if the staff total should differ
+            before you approve. Only <strong>Ready to use</strong> stock is
+            adjusted; laundry-vendor and at-the-laundry buckets stay as
+            booked.
           </>
         ) : (
           <>
-            Final figures: <strong>Approved</strong> (or staff count if not edited)
-            is what the ledger was aligned to.
+            Final figures: <strong>Approved</strong> (or staff count if not
+            edited) is what the book was aligned to.
           </>
         )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[880px] border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/40 text-left">
+            <tr className="border-b bg-muted text-left">
               <th className="px-3 py-2 font-medium">Item</th>
               <th className="px-3 py-2 text-right font-medium">Staff</th>
               <th className="px-3 py-2 text-right font-medium">Approved</th>
@@ -114,7 +114,7 @@ export function PhysicalCountAdminEditor(props: {
               ) : null}
               {pending ? (
                 <th className="px-3 py-2 text-right font-medium">
-                  Δ approved vs now
+                  Difference: approved vs now
                 </th>
               ) : null}
             </tr>
@@ -130,7 +130,7 @@ export function PhysicalCountAdminEditor(props: {
                       {l.sku ?? "—"}
                       {l.deltaStaffAtSubmit !== 0 ? (
                         <span className="ml-2 text-muted-foreground">
-                          (staff Δ @ submit:{" "}
+                          (staff difference @ submit:{" "}
                           {l.deltaStaffAtSubmit > 0
                             ? `+${l.deltaStaffAtSubmit}`
                             : l.deltaStaffAtSubmit}
@@ -139,7 +139,10 @@ export function PhysicalCountAdminEditor(props: {
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">
+                  <td
+                    data-numeric
+                    className="px-3 py-2 text-right tabular-nums"
+                  >
                     {l.countedQty}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -148,7 +151,7 @@ export function PhysicalCountAdminEditor(props: {
                         type="number"
                         min={0}
                         step={1}
-                        className="ml-auto h-9 w-[88px] rounded-xl text-right font-mono tabular-nums"
+                        className="ml-auto h-9 w-[88px] rounded-xl text-right tabular-nums"
                         value={String(
                           approvedById[l.linenItemId] ?? l.countedQty
                         )}
@@ -164,26 +167,33 @@ export function PhysicalCountAdminEditor(props: {
                         }}
                       />
                     ) : (
-                      <span className="font-mono tabular-nums">
+                      <span data-numeric className="tabular-nums">
                         {l.approvedQty ?? l.countedQty}
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
+                  <td
+                    data-numeric
+                    className="px-3 py-2 text-right tabular-nums text-muted-foreground"
+                  >
                     {l.bookQtyAtSubmit}
                   </td>
                   {pending ? (
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
+                    <td
+                      data-numeric
+                      className="px-3 py-2 text-right tabular-nums"
+                    >
                       {l.bookQtyNow ?? "—"}
                     </td>
                   ) : null}
                   {pending ? (
                     <td
+                      data-numeric
                       className={cn(
-                        "px-3 py-2 text-right font-mono tabular-nums font-medium",
+                        "px-3 py-2 text-right tabular-nums font-semibold",
                         d === null && "text-muted-foreground",
-                        (d ?? 0) > 0 && "text-emerald-700 dark:text-emerald-400",
-                        (d ?? 0) < 0 && "text-destructive"
+                        (d ?? 0) > 0 && "text-clean",
+                        (d ?? 0) < 0 && "text-damaged"
                       )}
                     >
                       {d === null
@@ -204,7 +214,6 @@ export function PhysicalCountAdminEditor(props: {
           <Button
             type="button"
             variant="secondary"
-            className="rounded-2xl"
             disabled={saving}
             onClick={onSave}
           >
@@ -212,6 +221,6 @@ export function PhysicalCountAdminEditor(props: {
           </Button>
         </div>
       ) : null}
-    </Card>
+    </div>
   );
 }

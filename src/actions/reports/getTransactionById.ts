@@ -5,7 +5,6 @@ import { requireUser, requirePropertyAccess } from "@/lib/auth";
 import { TxnType } from "@/generated/prisma";
 
 export async function getTransactionById(id: string) {
-  console.log("id", id);
   if (!id || typeof id !== "string") {
     return { ok: false as const, message: "Missing transaction id." };
   }

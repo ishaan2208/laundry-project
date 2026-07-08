@@ -38,11 +38,11 @@ export function StockAuditDownloadButton(props: {
     <Button
       type="button"
       variant="secondary"
-      className="h-11 rounded-2xl border border-violet-200/60 bg-white/60 px-4 backdrop-blur-[2px] hover:bg-violet-600/10 dark:border-violet-500/15 dark:bg-zinc-950/40 dark:hover:bg-violet-500/10"
+      size="lg"
       onClick={onClick}
       disabled={!props.rows.length}
     >
-      <Download className="mr-2 h-4 w-4" />
+      <Download className="size-4" />
       Export CSV
     </Button>
   );

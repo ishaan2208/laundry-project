@@ -1,170 +1,116 @@
-// src/components/dashboard/VendorPendingTop.tsx
 "use client";
 
 import Link from "next/link";
-import { LazyMotion, domAnimation, m, useReducedMotion } from "framer-motion";
-import {
-  Shirt,
-  ArrowRight,
-  AlertTriangle,
-  Truck,
-  Sparkles,
-} from "lucide-react";
-
-import { GlassCard } from "@/components/ui/glass-card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { fadeUp } from "@/components/motion/variants";
+import { ChevronRight, Check, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import type { VendorPendingTopRow } from "@/actions/reports/getTopVendorPending";
 
-export function VendorPendingTop({
+/** "With the laundry right now" — the number staff get asked about every day. */
+export function PendingCard({
   propertyId,
   rows,
-  needsProperty,
+  isAdmin,
 }: {
   propertyId?: string;
   rows: VendorPendingTopRow[] | null;
-  needsProperty: boolean;
+  isAdmin?: boolean;
 }) {
-  const reduceMotion = useReducedMotion();
-
-  if (needsProperty) {
-    return (
-      <GlassCard className="rounded-3xl border border-violet-200/60 bg-white/60 p-5 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40">
-        <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div>
-            <div className="text-sm font-semibold">
-              Select property to load pending
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Pending is calculated from vendor locations for the selected
-              property.
-            </div>
-          </div>
-        </div>
-      </GlassCard>
-    );
-  }
-
-  const viewAllHref = propertyId
+  const href = propertyId
     ? `/app/vendors?propertyId=${encodeURIComponent(propertyId)}`
-    : `/app/vendors`;
+    : "/app/vendors";
+
+  const total = rows?.reduce((s, r) => s + Math.max(r.pendingQty, 0), 0) ?? 0;
+  const hasWrong = rows?.some((r) => r.pendingQty < 0) ?? false;
+  const allClear = rows !== null && rows !== undefined && rows.length === 0;
 
   return (
-    <LazyMotion features={domAnimation}>
-      <m.div
-        variants={fadeUp}
-        initial="hidden"
-        animate="show"
-        transition={{ duration: reduceMotion ? 0 : 0.16 }}
+    <section aria-label="With the laundry" className="surface rounded-2xl">
+      <Link
+        href={href}
+        className="press-soft flex items-center justify-between gap-3 rounded-t-2xl px-4 pb-3 pt-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <GlassCard
-          className={cn(
-            "rounded-3xl border border-violet-200/60 bg-white/60 p-4 backdrop-blur-[2px]",
-            "dark:border-violet-500/15 dark:bg-zinc-950/40"
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-700 ring-1 ring-violet-200/60 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-500/15">
-                <Truck className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold">
-                  Pending with laundry
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Top vendors by pending qty
-                </div>
-              </div>
-            </div>
-
-            <Button
-              asChild
-              variant="secondary"
-              className="h-10 rounded-2xl border border-violet-200/60 bg-white/60 px-3 backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
+        <div className="min-w-0">
+          <h2 className="text-base font-bold">With the laundry</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Sent for washing, not yet back
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {rows ? (
+            <span
+              data-numeric
+              className={cn(
+                "text-2xl font-bold tracking-tight",
+                total > 0 ? "text-soiled" : "text-clean"
+              )}
             >
-              <Link
-                href={viewAllHref}
-                className="inline-flex items-center gap-1"
-              >
-                View all <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <Separator className="my-3 bg-violet-200/40 dark:bg-violet-500/15" />
-
-          {!rows ? (
-            <div className="space-y-2">
-              <div className="h-4 w-44 rounded bg-black/5 dark:bg-white/5" />
-              <div className="h-4 w-56 rounded bg-black/5 dark:bg-white/5" />
-              <div className="h-4 w-48 rounded bg-black/5 dark:bg-white/5" />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="flex items-start gap-3 text-sm text-muted-foreground">
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                <Shirt className="h-5 w-5" />
-              </span>
-              <div>
-                <div className="text-sm font-semibold text-foreground">
-                  All clear
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  No pending with vendors.
-                </div>
-              </div>
-            </div>
+              {total}
+            </span>
           ) : (
-            <div className="flex flex-col">
-              {rows.map((r, idx) => {
-                const isBad = r.pendingQty < 0;
-                return (
-                  <div key={r.vendorId}>
-                    <div
+            <span className="h-7 w-10 animate-pulse rounded bg-muted" />
+          )}
+          <ChevronRight className="size-5 text-muted-foreground" />
+        </div>
+      </Link>
+
+      {allClear ? (
+        <div className="flex items-center gap-2.5 border-t px-4 py-3.5">
+          <span className="grid size-8 place-items-center rounded-full bg-clean-soft">
+            <Check className="size-4.5 text-clean" />
+          </span>
+          <p className="text-sm font-medium">
+            All clear — nothing is with the laundry.
+          </p>
+        </div>
+      ) : rows ? (
+        <>
+          <ul className="divide-y divide-border border-t">
+            {rows.map((r) => {
+              const wrong = r.pendingQty < 0;
+              return (
+                <li
+                  key={r.vendorId}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <span className="min-w-0 truncate text-sm font-semibold">
+                    {r.vendorName}
+                  </span>
+                  <span className="flex items-baseline gap-1">
+                    <span
+                      data-numeric
                       className={cn(
-                        "flex items-center justify-between gap-3 rounded-2xl px-2 py-3",
-                        "active:bg-violet-600/5 dark:active:bg-violet-500/10"
+                        "text-base font-bold",
+                        wrong && "text-damaged"
                       )}
                     >
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">
-                          {r.vendorName}
-                        </div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          Items currently with vendor
-                        </div>
-                      </div>
+                      {r.pendingQty}
+                    </span>
+                    <span className="text-xs text-muted-foreground">pcs</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
 
-                      <div className="flex items-center gap-2">
-                        {isBad ? (
-                          <AlertTriangle className="h-4 w-4 text-amber-500" />
-                        ) : null}
-                        <Badge
-                          variant={isBad ? "destructive" : "secondary"}
-                          className="rounded-full border border-violet-200/60 bg-white/60 tabular-nums dark:border-violet-500/15 dark:bg-zinc-950/40"
-                        >
-                          {r.pendingQty}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {idx !== rows.length - 1 ? (
-                      <Separator className="bg-violet-200/40 dark:bg-violet-500/15" />
-                    ) : null}
-                  </div>
-                );
-              })}
+          {hasWrong ? (
+            <div className="flex items-start gap-2 border-t bg-damaged-soft px-4 py-3">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-damaged" />
+              <p className="text-sm font-medium text-damaged">
+                A minus number is impossible — some entries went wrong.{" "}
+                {isAdmin
+                  ? "Fix it with a Fresh start in Admin."
+                  : "Tell your admin so they can fix it."}
+              </p>
             </div>
-          )}
-        </GlassCard>
-      </m.div>
-    </LazyMotion>
+          ) : null}
+        </>
+      ) : (
+        <div className="space-y-2 border-t px-4 py-3.5">
+          <div className="h-4 w-3/5 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-2/5 animate-pulse rounded bg-muted" />
+        </div>
+      )}
+    </section>
   );
 }

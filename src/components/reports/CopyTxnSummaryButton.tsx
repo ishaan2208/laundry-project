@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Check, Share2, ClipboardCopy } from "lucide-react";
 import { TxnType, LinenCondition } from "@/generated/prisma";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import T from "react-hot-toast";
+import { ShareUpdate } from "@/components/mobile/ShareUpdate";
+import { getPendingItemsForVendor } from "@/actions/ui/getPendingItemsForVendor";
+import {
+  buildSentStory,
+  buildReceivedStory,
+  type StoryPendingLine,
+} from "@/lib/laundryStory";
 
 type Entry = {
   linenItemName: string;
@@ -15,235 +16,122 @@ type Entry = {
   qtyDelta: number;
 };
 
-export function CopyTxnSummaryButton(props: {
-  className: string;
-  txn: {
-    id: string;
-    type: TxnType;
-    occurredAt: Date | string;
-    propertyName: string;
-    vendorName?: string;
-    reference?: string;
-    entries: Entry[];
-  };
-}) {
-  const { txn, className } = props;
-  const [copied, setCopied] = React.useState(false);
-
-  console.log("txn for copy", txn);
-  const text = React.useMemo(() => buildSummary(txn), [txn]);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      T.success("Copied summary to clipboard");
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      // fallback
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      try {
-        document.execCommand("copy");
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1400);
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
-  }
-
-  return (
-    <div className="flex items-center">
-      {/* <Badge
-        variant="secondary"
-        className="hidden sm:inline-flex rounded-2xl border border-violet-200/60 bg-white/60 text-xs backdrop-blur-[2px] dark:border-violet-500/15 dark:bg-zinc-950/40"
-      >
-        <Share2 className="mr-1 h-4 w-4" />
-        Share
-      </Badge> */}
-
-      <Button
-        type="button"
-        onClick={copy}
-        className={cn(
-          "h-11 rounded-2xl w-full justify-center gap-2",
-          "bg-violet-600 text-white hover:bg-violet-600/90",
-          "dark:bg-violet-500 dark:hover:bg-violet-500/90",
-          "shadow-sm shadow-violet-600/10 dark:shadow-violet-500/10",
-          "focus-visible:ring-2 focus-visible:ring-violet-500/40",
-          className
-        )}
-        aria-label="Copy summary to clipboard"
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          {copied ? (
-            <motion.span
-              key="copied"
-              initial={{ opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -3 }}
-              className="inline-flex items-center gap-2"
-            >
-              <Check className="h-4 w-4" />
-              <span className="text-sm font-semibold">Copied</span>
-            </motion.span>
-          ) : (
-            <motion.span
-              key="copy"
-              initial={{ opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -3 }}
-              className="inline-flex items-center gap-2"
-            >
-              <ClipboardCopy className="h-4 w-4" />
-              <span className="text-sm font-semibold">Copy</span>
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </Button>
-    </div>
-  );
-}
-
-function fmtDate(d: Date) {
-  return d.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function humanType(t: TxnType) {
-  if (t === TxnType.DISPATCH_TO_LAUNDRY) return "Dispatch to Laundry";
-  if (t === TxnType.RECEIVE_FROM_LAUNDRY) return "Receive from Laundry";
-  return t.replaceAll("_", " ");
-}
-
-function buildSummary(txn: {
+type TxnModel = {
+  id: string;
   type: TxnType;
   occurredAt: Date | string;
   propertyName: string;
   vendorName?: string;
   reference?: string;
+  propertyId?: string;
+  vendorId?: string;
   entries: Entry[];
+};
+
+/**
+ * Share buttons for a register entry: the same Hinglish story staff get
+ * after saving a flow, rebuilt from the entry plus the vendor's CURRENT
+ * balance. Renders nothing for entry types that aren't sent/received.
+ */
+export function CopyTxnSummaryButton(props: {
+  className?: string;
+  txn: TxnModel;
 }) {
-  const occurredAt =
-    typeof txn.occurredAt === "string"
-      ? new Date(txn.occurredAt)
-      : txn.occurredAt;
+  const { txn, className } = props;
+  const [story, setStory] = React.useState<string | null>(null);
 
-  const header = `Laundry Update — ${fmtDate(occurredAt)}`;
-  const lines: string[] = [];
-  lines.push(header);
-  lines.push(`Property: ${txn.propertyName}`);
-  //   if (txn.vendorName) lines.push(`Vendor: ${txn.vendorName}`);
-  if (txn.reference) lines.push(`Ref: ${txn.reference}`);
-  lines.push(`Type: ${humanType(txn.type)}`);
-  lines.push(""); // spacer
+  const shareable =
+    txn.type === TxnType.DISPATCH_TO_LAUNDRY ||
+    txn.type === TxnType.RECEIVE_FROM_LAUNDRY;
 
-  if (txn.type === TxnType.DISPATCH_TO_LAUNDRY) {
-    // ledger has -store and +vendor; avoid negatives by using max(pos, abs(neg))
-    const byItem = new Map<string, { pos: number; neg: number }>();
+  React.useEffect(() => {
+    if (!shareable) return;
+    let cancelled = false;
 
-    for (const e of txn.entries) {
-      const cur = byItem.get(e.linenItemName) ?? { pos: 0, neg: 0 };
-      if (e.qtyDelta >= 0) cur.pos += e.qtyDelta;
-      else cur.neg += e.qtyDelta;
-      byItem.set(e.linenItemName, cur);
-    }
-
-    const rows = Array.from(byItem.entries())
-      .map(([name, v]) => ({ name, qty: Math.max(v.pos, Math.abs(v.neg)) }))
-      .filter((r) => r.qty > 0)
-      .sort((a, b) => b.qty - a.qty);
-
-    const total = rows.reduce((s, r) => s + r.qty, 0);
-
-    lines.push(`Total Dispatched: ${total} pcs`);
-    lines.push("Items:");
-    if (!rows.length) {
-      lines.push("- (none)");
-    } else {
-      for (const r of rows) lines.push(`- ${r.name}: ${r.qty}`);
-    }
-    return lines.join("\n");
-  }
-
-  if (txn.type === TxnType.RECEIVE_FROM_LAUNDRY) {
-    // Ignore negatives completely.
-    // Total should EXCLUDE REWASH (your rule).
-    const byItemCleanDamaged = new Map<string, number>();
-    const byItemRewash = new Map<string, number>();
-
-    let clean = 0;
-    let damaged = 0;
-    let rewash = 0;
-
-    for (const e of txn.entries) {
-      if (e.qtyDelta <= 0) continue;
-
-      if (e.condition === "REWASH") {
-        rewash += e.qtyDelta;
-        byItemRewash.set(
-          e.linenItemName,
-          (byItemRewash.get(e.linenItemName) ?? 0) + e.qtyDelta
-        );
-        continue;
+    (async () => {
+      let pendingLines: StoryPendingLine[] | null = null;
+      if (txn.propertyId && txn.vendorId) {
+        try {
+          const res = await getPendingItemsForVendor({
+            propertyId: txn.propertyId,
+            vendorId: txn.vendorId,
+          });
+          if (res.ok) {
+            pendingLines = res.rows.map((r) => ({
+              name: r.linenItemName,
+              qty: r.totalPending,
+            }));
+          }
+        } catch {
+          pendingLines = null;
+        }
       }
 
-      // CLEAN + DAMAGED contribute to total
-      byItemCleanDamaged.set(
-        e.linenItemName,
-        (byItemCleanDamaged.get(e.linenItemName) ?? 0) + e.qtyDelta
-      );
+      const when =
+        typeof txn.occurredAt === "string"
+          ? new Date(txn.occurredAt)
+          : txn.occurredAt;
 
-      if (e.condition === "CLEAN") clean += e.qtyDelta;
-      else if (e.condition === "DAMAGED") damaged += e.qtyDelta;
-    }
+      let text: string;
+      if (txn.type === TxnType.DISPATCH_TO_LAUNDRY) {
+        // Ledger has -store and +vendor; use max(pos, |neg|) per item.
+        const byItem = new Map<string, { pos: number; neg: number }>();
+        for (const e of txn.entries) {
+          const cur = byItem.get(e.linenItemName) ?? { pos: 0, neg: 0 };
+          if (e.qtyDelta >= 0) cur.pos += e.qtyDelta;
+          else cur.neg += e.qtyDelta;
+          byItem.set(e.linenItemName, cur);
+        }
+        const lines = [...byItem.entries()]
+          .map(([name, v]) => ({ name, qty: Math.max(v.pos, Math.abs(v.neg)) }))
+          .filter((l) => l.qty > 0)
+          .sort((a, b) => b.qty - a.qty);
 
-    const totalReceived = clean + damaged; // ✅ excludes rewash
+        text = buildSentStory({
+          propertyName: txn.propertyName,
+          when,
+          lines,
+          pendingLines,
+        });
+      } else {
+        const byItem = new Map<
+          string,
+          { clean: number; damaged: number; rewash: number }
+        >();
+        for (const e of txn.entries) {
+          if (e.qtyDelta <= 0) continue;
+          const cur =
+            byItem.get(e.linenItemName) ?? { clean: 0, damaged: 0, rewash: 0 };
+          if (e.condition === "CLEAN") cur.clean += e.qtyDelta;
+          else if (e.condition === "DAMAGED") cur.damaged += e.qtyDelta;
+          else if (e.condition === "REWASH") cur.rewash += e.qtyDelta;
+          byItem.set(e.linenItemName, cur);
+        }
+        const lines = [...byItem.entries()]
+          .map(([name, v]) => ({ name, ...v }))
+          .sort(
+            (a, b) =>
+              b.clean + b.damaged + b.rewash - (a.clean + a.damaged + a.rewash)
+          );
 
-    const rowsMain = Array.from(byItemCleanDamaged.entries())
-      .map(([name, qty]) => ({ name, qty }))
-      .filter((r) => r.qty > 0)
-      .sort((a, b) => b.qty - a.qty);
+        text = buildReceivedStory({
+          propertyName: txn.propertyName,
+          when,
+          lines,
+          pendingLines,
+        });
+      }
 
-    const rowsRewash = Array.from(byItemRewash.entries())
-      .map(([name, qty]) => ({ name, qty }))
-      .filter((r) => r.qty > 0)
-      .sort((a, b) => b.qty - a.qty);
+      if (!cancelled) setStory(text);
+    })();
 
-    lines.push(`Total Received: ${totalReceived} pcs`);
-    lines.push(`Breakdown: Clean ${clean}, Damaged ${damaged}`);
-    if (rewash > 0) lines.push(`Rewash (not in total): ${rewash} pcs`);
-    lines.push("");
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txn.id, shareable]);
 
-    lines.push("Items (Received):");
-    if (!rowsMain.length) {
-      lines.push("- (none)");
-    } else {
-      for (const r of rowsMain) lines.push(`- ${r.name}: ${r.qty}`);
-    }
+  if (!shareable) return null;
 
-    if (rowsRewash.length) {
-      lines.push("");
-      lines.push("Items (Rewash):");
-      for (const r of rowsRewash) lines.push(`- ${r.name}: ${r.qty}`);
-    }
-
-    return lines.join("\n");
-  }
-
-  // Fallback
-  lines.push("Items:");
-  lines.push("- (copy summary available only for Dispatch/Receive)");
-  return lines.join("\n");
+  return <ShareUpdate text={story} compact className={className} />;
 }

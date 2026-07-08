@@ -21,9 +21,7 @@ function currentMonthYYYYMM_IST() {
 export default async function VendorBillingPage({
   searchParams,
 }: {
-  searchParams:
-  | Promise<Record<string, string | string[] | undefined>>
-  | Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
   const sp = (await searchParams) as Record<string, string | undefined>;
