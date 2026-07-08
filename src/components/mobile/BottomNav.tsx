@@ -13,11 +13,20 @@ const tabs = [
   { href: "/app/txns", label: "Register", icon: BookOpen, exact: false },
 ];
 
-/** Focused task flows hide the tab bar so staff finish one job at a time. */
+/**
+ * Focused task flows hide the tab bar so staff finish one job at a time.
+ * Every route that renders StickyBar (a fixed bottom action bar) MUST be
+ * listed here — otherwise the tab bar sits on top of it (BottomNav has a
+ * higher stacking layer than StickyBar) and the primary button becomes
+ * invisible.
+ */
 const immersiveRoutes = [
   "/app/dispatch",
   "/app/receive",
   "/app/stock/physical-count",
+  "/admin/procurement",
+  "/admin/discard",
+  "/admin/closing",
 ];
 
 export default function BottomNav({ isAdmin }: { isAdmin?: boolean }) {

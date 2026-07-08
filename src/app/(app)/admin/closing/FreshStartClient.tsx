@@ -220,9 +220,10 @@ export function FreshStartClient({
     <div className="space-y-4">
       <HelpNote>
         Use this when the numbers look wrong — too much showing as pending, or
-        minus figures. Count what is really there; the app corrects the
-        difference in one entry and everything starts from the real numbers.
-        You can do this any time, as often as needed.
+        minus figures. Count what is really there below, then tap{" "}
+        <strong>Review &amp; start fresh</strong> at the bottom to save it as
+        one correction entry. Nothing changes until you tap that. You can do
+        this any time, as often as needed.
       </HelpNote>
 
       {properties.length > 1 ? (
