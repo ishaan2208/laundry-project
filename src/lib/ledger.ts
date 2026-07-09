@@ -226,37 +226,51 @@ export async function postTransaction(
         }
       }
 
-      // Vendor/location consistency rules (strict but practical):
+      // Vendor/location consistency rules (strict but practical).
       const locById = new Map(locations.map((l) => [l.id, l] as const));
+
+      // Every VENDOR-kind location must carry its own vendorId — that is the
+      // source of truth for which laundry an entry belongs to.
+      for (const e of input.entries) {
+        const l = locById.get(e.locationId)!;
+        if (l.kind === "VENDOR" && !l.vendorId) {
+          return err("CONFLICT", "VENDOR location missing vendorId", {
+            locationId: l.id,
+          });
+        }
+      }
+
       const usesVendorLoc = input.entries.some(
         (e) => locById.get(e.locationId)?.kind === "VENDOR"
       );
-      if (usesVendorLoc && !input.vendorId) {
+
+      // Movement flows (dispatch / receive / resend) are always about ONE
+      // laundry, so they must declare it at the transaction level. Adjustments
+      // — most notably a Fresh start — may legitimately correct several
+      // laundries at once; there the per-entry location.vendorId carries the
+      // vendor and the transaction vendorId stays null.
+      const isMovement =
+        input.type === "DISPATCH_TO_LAUNDRY" ||
+        input.type === "RECEIVE_FROM_LAUNDRY" ||
+        input.type === "RESEND_REWASH";
+      if (usesVendorLoc && isMovement && !input.vendorId) {
         return err(
           "VALIDATION_ERROR",
           "vendorId is required when using a VENDOR location"
         );
       }
+
+      // When a single transaction vendor IS declared, every vendor-location
+      // entry must match it (guards movement flows against cross-vendor mixups).
       if (input.vendorId) {
         for (const e of input.entries) {
           const l = locById.get(e.locationId)!;
-          if (l.kind === "VENDOR") {
-            if (!l.vendorId) {
-              return err("CONFLICT", "VENDOR location missing vendorId", {
-                locationId: l.id,
-              });
-            }
-            if (l.vendorId !== input.vendorId) {
-              return err(
-                "VALIDATION_ERROR",
-                "Vendor location vendorId mismatch",
-                {
-                  locationId: l.id,
-                  expectedVendorId: input.vendorId,
-                  actualVendorId: l.vendorId,
-                }
-              );
-            }
+          if (l.kind === "VENDOR" && l.vendorId !== input.vendorId) {
+            return err("VALIDATION_ERROR", "Vendor location vendorId mismatch", {
+              locationId: l.id,
+              expectedVendorId: input.vendorId,
+              actualVendorId: l.vendorId,
+            });
           }
         }
       }

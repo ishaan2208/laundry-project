@@ -12,7 +12,7 @@ import { RememberProperty } from "@/components/RememberProperty";
 import { resolvePropertyId } from "@/lib/propertyPref.server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Boxes } from "lucide-react";
 
 // Always the same three numbers as the Linen tab: with you + at laundry = total.
 // Thrown-away/lost is never counted as stock you have.
@@ -76,6 +76,13 @@ export default async function StockAuditPage({
 
   const admin = isAdmin(user);
 
+  // No real total = hotel never set up its count; its rows are just
+  // send/receive leftovers (often negative). Guide to set up, don't show them.
+  const propertyTotal = audit
+    ? audit.rows.reduce((s, r) => s + r.totalQty, 0)
+    : 0;
+  const notSetUp = !!audit && propertyTotal <= 0;
+
   return (
     <div className="min-h-dvh bg-background pb-8">
       <RememberProperty propertyId={propertyId} />
@@ -102,25 +109,44 @@ export default async function StockAuditPage({
           </div>
         ) : audit ? (
           <>
-            <HelpNote>
-              The same three numbers as the Linen tab, for every item: what is{" "}
-              <strong>with you</strong>, what is <strong>at the laundry</strong>
-              , and the <strong>total</strong>. Updated{" "}
-              {fmtGeneratedAtIST(audit.generatedAt)}.
-            </HelpNote>
+            {notSetUp ? (
+              <section className="surface rounded-2xl p-6 text-center">
+                <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
+                  <Boxes className="size-6" />
+                </div>
+                <p className="text-base font-semibold">No starting count yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+                  This hotel hasn&apos;t set up how much linen it owns, so there
+                  are no weekly totals to show.{" "}
+                  {admin
+                    ? "Do a Fresh start to count what's really here."
+                    : "Ask your admin to set it up."}
+                </p>
+              </section>
+            ) : (
+              <>
+                <HelpNote>
+                  The same three numbers as the Linen tab, for every item: what
+                  is <strong>with you</strong>, what is{" "}
+                  <strong>at the laundry</strong>, and the{" "}
+                  <strong>total</strong>. Updated{" "}
+                  {fmtGeneratedAtIST(audit.generatedAt)}.
+                </HelpNote>
 
-            {negativeCount > 0 ? (
-              <HelpNote tone="warn">
-                {negativeCount}{" "}
-                {negativeCount === 1 ? "item has" : "items have"} a number below
-                zero, which is impossible.{" "}
-                {admin
-                  ? "Do a Fresh start to fix it."
-                  : "Tell your admin to fix it."}
-              </HelpNote>
-            ) : null}
+                {negativeCount > 0 ? (
+                  <HelpNote tone="warn">
+                    {negativeCount}{" "}
+                    {negativeCount === 1 ? "item has" : "items have"} a number
+                    below zero, which is impossible.{" "}
+                    {admin
+                      ? "Do a Fresh start to fix it."
+                      : "Tell your admin to fix it."}
+                  </HelpNote>
+                ) : null}
 
-            <StockAuditTable rows={audit.rows} />
+                <StockAuditTable rows={audit.rows} />
+              </>
+            )}
 
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="secondary" size="lg">
@@ -130,7 +156,12 @@ export default async function StockAuditPage({
                   Back to Linen
                 </Link>
               </Button>
-              {currentPropertyName ? (
+              {notSetUp && admin ? (
+                <Button asChild size="lg">
+                  <Link href="/admin/closing">Do a Fresh start</Link>
+                </Button>
+              ) : null}
+              {!notSetUp && currentPropertyName ? (
                 <StockAuditDownloadButton
                   propertyName={currentPropertyName}
                   generatedAtIso={audit.generatedAt}
@@ -139,7 +170,7 @@ export default async function StockAuditPage({
                   rows={audit.rows}
                 />
               ) : null}
-              {admin ? (
+              {!notSetUp && admin ? (
                 <>
                   <StockAuditRecordButton
                     propertyId={propertyId}

@@ -8,8 +8,15 @@ import { PageHeader } from "@/components/mobile/PageHeader";
 import { HelpNote } from "@/components/mobile/HelpNote";
 import { RememberProperty } from "@/components/RememberProperty";
 import { resolvePropertyId } from "@/lib/propertyPref.server";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ClipboardList, History, ChevronRight, TriangleAlert } from "lucide-react";
+import {
+  ClipboardList,
+  History,
+  ChevronRight,
+  TriangleAlert,
+  Boxes,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function StockPage({
@@ -50,6 +57,11 @@ export default async function StockPage({
   const overview = res?.ok ? res.data : null;
   const admin = isAdmin(user);
 
+  // A hotel that never set up its linen has no real total, so any "with you"
+  // figure is just leftover send/receive noise (often negative). Don't show
+  // those numbers — guide them to set a starting count instead.
+  const notSetUp = !!overview && overview.totals.total <= 0;
+
   return (
     <div className="min-h-dvh bg-background pb-6">
       <RememberProperty propertyId={propertyId} />
@@ -80,14 +92,40 @@ export default async function StockPage({
           </div>
         ) : (
           <>
-            <HelpNote>
-              Every piece of linen is either <strong>with you</strong> at the
-              hotel or <strong>at the laundry</strong>. Add them up and that is
-              your total. These numbers come straight from what staff send and
-              receive.
-            </HelpNote>
+            {notSetUp ? (
+              <section className="surface rounded-2xl p-6 text-center">
+                <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
+                  <Boxes className="size-6" />
+                </div>
+                <p className="text-base font-semibold">No starting count yet</p>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                  This hotel hasn&apos;t set up how much linen it owns.{" "}
+                  {admin
+                    ? "Do a Fresh start to count what's really here. After that, sends and receives keep it accurate."
+                    : "Ask your admin to set it up. After that, your sends and receives keep it accurate."}
+                </p>
+                {overview.totals.atLaundry > 0 ? (
+                  <p className="mx-auto mt-3 max-w-xs rounded-xl bg-soiled-soft px-3 py-2 text-sm text-soiled">
+                    So far, {overview.totals.atLaundry} pieces have been sent to
+                    the laundry and not brought back.
+                  </p>
+                ) : null}
+                {admin ? (
+                  <Button asChild size="lg" className="mt-4">
+                    <Link href="/admin/closing">Do a Fresh start</Link>
+                  </Button>
+                ) : null}
+              </section>
+            ) : (
+              <>
+                <HelpNote>
+                  Every piece of linen is either <strong>with you</strong> at
+                  the hotel or <strong>at the laundry</strong>. Add them up and
+                  that is your total. These numbers come straight from what
+                  staff send and receive.
+                </HelpNote>
 
-            {overview.hasIssue ? (
+                {overview.hasIssue ? (
               <HelpNote tone="warn">
                 Some numbers have gone below zero, which is impossible.{" "}
                 {admin
@@ -242,6 +280,8 @@ export default async function StockPage({
                 </ul>
               )}
             </section>
+              </>
+            )}
 
             {/* Related jobs */}
             <div className="space-y-3">
