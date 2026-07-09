@@ -56,7 +56,31 @@ export async function resolvePropertyByPmsId(pmsPropertyId: number) {
   });
 }
 
+/**
+ * Prefer the vendor from this hotel's most recent send/receive (same rule as
+ * the laundry app's getLastVendorForProperty). Fall back to the oldest active
+ * vendor location only when there is no prior transaction.
+ */
 async function getDefaultVendorIdForProperty(propertyId: string) {
+  const lastTxn = await prisma.transaction.findFirst({
+    where: {
+      propertyId,
+      vendorId: { not: null },
+      voidedAt: null,
+      type: {
+        in: [
+          TxnType.DISPATCH_TO_LAUNDRY,
+          TxnType.RECEIVE_FROM_LAUNDRY,
+          TxnType.RESEND_REWASH,
+        ],
+      },
+      vendor: { isActive: true },
+    },
+    orderBy: { occurredAt: "desc" },
+    select: { vendorId: true },
+  });
+  if (lastTxn?.vendorId) return lastTxn.vendorId;
+
   const vendorLoc = await prisma.location.findFirst({
     where: {
       propertyId,
