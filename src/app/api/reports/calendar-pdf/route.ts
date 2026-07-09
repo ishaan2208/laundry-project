@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, message: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { propertyName, vendorName, month, transactionType, dateHeaders, rows, checkoutRoomsByDate, barcodeData } = body;
+    const { propertyName, vendorName, month, transactionType, dateHeaders, rows, checkoutRoomsByDate, barcodeData, design } = body;
 
     if (!propertyName || !vendorName || !month || !transactionType || !dateHeaders || !rows) {
         return NextResponse.json(
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
             rows,
             checkoutRoomsByDate,
             barcodeData,
+            design,
         };
         const { renderToStaticMarkup } = await import("react-dom/server");
         const html = renderToStaticMarkup(React.createElement(CalendarReportHTML, props));
