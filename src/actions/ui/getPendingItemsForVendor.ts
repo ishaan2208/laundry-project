@@ -71,14 +71,18 @@ export async function getPendingItemsForVendor(input: {
 
   const rows: PendingItemRow[] = Array.from(map.entries())
     .map(([linenItemId, v]) => {
-      const pendingSoiled = Math.max(0, Math.round(v.soiled));
-      const pendingRewash = Math.max(0, Math.round(v.rewash));
+      // Pending is the NET still with the laundry. Do NOT clamp each
+      // condition to >= 0 before summing: with the incomplete clean/soiled
+      // circle, SOILED can be negative while REWASH is positive on the same
+      // item, and clamping each side separately inflates the total (e.g. a
+      // real 44 shown as 132). Net matches Fresh start and the Linen tab.
+      const totalPending = Math.round(v.soiled + v.rewash);
       return {
         linenItemId,
         linenItemName: names.get(linenItemId) ?? "Item",
-        pendingSoiled,
-        pendingRewash,
-        totalPending: pendingSoiled + pendingRewash,
+        pendingSoiled: Math.round(v.soiled),
+        pendingRewash: Math.round(v.rewash),
+        totalPending,
       };
     })
     .filter((r) => r.totalPending > 0)
