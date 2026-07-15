@@ -13,4 +13,5 @@
 - Environments: .env
 
   Creating an optimized production build ...
- ELIFECYCLE  Command failed with exit code 130.
+✓ Compiled successfully in 55s
+  Running TypeScript ...
